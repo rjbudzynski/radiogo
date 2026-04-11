@@ -186,14 +186,23 @@ func favMarker(isFav bool) string {
 
 // renderHelpContent returns the text shown in the list pane on the Help tab.
 func renderHelpContent(width int) string {
-	_ = width
+	// Clamp to a sensible minimum so sub-expressions don't go negative.
+	if width < 20 {
+		width = 20
+	}
 	var sb strings.Builder
 
 	section := func(title string) {
 		sb.WriteString("\n" + styleSectionTitle.Render(title) + "\n")
 	}
+	keyW := 12
 	row := func(key, desc string) {
-		sb.WriteString(styleInfoLabel.Width(12).Render(key) + styleInfoValue.Render(desc) + "\n")
+		// Clamp desc to whatever space remains after the key column.
+		descW := width - keyW
+		if descW < 1 {
+			descW = 1
+		}
+		sb.WriteString(styleInfoLabel.Width(keyW).Render(key) + styleInfoValue.Width(descW).Render(desc) + "\n")
 	}
 
 	sb.WriteString(styleSectionTitle.Render("radiogo — keyboard shortcuts") + "\n")
@@ -217,11 +226,13 @@ func renderHelpContent(width int) string {
 	section("General")
 	row("q / Ctrl+C", "quit")
 
-	sb.WriteString("\n" + styleDivider.Render("─────────────────────────────────") + "\n")
-	sb.WriteString(styleHelp.Render("Stations sourced from radio-browser.info\n"))
-	sb.WriteString(styleHelp.Render("Favorites: ~/.config/radiogo/favorites.json\n"))
-	sb.WriteString(styleHelp.Render("If the directory is unreachable, favorites\n"))
-	sb.WriteString(styleHelp.Render("are shown in Browse as a fallback.\n"))
+	divider := strings.Repeat("─", width)
+	sb.WriteString("\n" + styleDivider.Render(divider) + "\n")
+
+	notes := "Stations sourced from radio-browser.info\n" +
+		"Favorites: ~/.config/radiogo/favorites.json\n" +
+		"If the directory is unreachable, favorites are shown in Browse as a fallback."
+	sb.WriteString(lipgloss.NewStyle().Width(width).Inherit(styleHelp).Render(notes) + "\n")
 
 	return sb.String()
 }
