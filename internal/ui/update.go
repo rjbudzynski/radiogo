@@ -53,11 +53,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseMsg:
+		// Tab bar click (Y=0).
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.Y == 0 {
 			if tab := tabAtX(msg.X); tab >= 0 {
 				m.activeTab = tab
 			}
+			return m, nil
 		}
+
+		// Scroll wheel — navigate the list on any Y.
+		if msg.Button == tea.MouseButtonWheelUp && m.activeTab != tabHelp {
+			idx := m.activeIndex() - 1
+			if idx < 0 {
+				idx = 0
+			}
+			m.setActiveIndex(idx)
+			return m, nil
+		}
+		if msg.Button == tea.MouseButtonWheelDown && m.activeTab != tabHelp {
+			list := m.activeList()
+			idx := m.activeIndex() + 1
+			if idx >= len(list) {
+				idx = len(list) - 1
+			}
+			m.setActiveIndex(idx)
+			return m, nil
+		}
+
+		// Left click in the list pane — select and play.
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			leftWidth := m.width * 40 / 100
+			if msg.X < leftWidth {
+				if station := m.listHitTest(msg.Y); station >= 0 {
+					m.setActiveIndex(station)
+					return m, m.playSelected()
+				}
+			}
+		}
+
 		return m, nil
 
 	case tea.KeyMsg:

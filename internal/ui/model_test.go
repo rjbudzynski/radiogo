@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/rjbudzynski/radiogo/internal/radio"
@@ -122,5 +123,95 @@ func TestSelectedStation_EmptyList(t *testing.T) {
 	m.favorites = nil
 	if s := m.selectedStation(); s != nil {
 		t.Fatalf("want nil for empty list, got %v", s)
+	}
+}
+
+// --- listHeaderLines ---
+
+func TestListHeaderLines_Browse(t *testing.T) {
+	m := baseModel()
+	m.activeTab = tabBrowse
+	m.browseErr = nil
+	if got := m.listHeaderLines(); got != 1 {
+		t.Errorf("want 1 (search line only), got %d", got)
+	}
+}
+
+func TestListHeaderLines_BrowseWithError(t *testing.T) {
+	m := baseModel()
+	m.activeTab = tabBrowse
+	m.browseErr = fmt.Errorf("oops")
+	m.browseStations = stationsOf("a") // stations present → not a fallback
+	if got := m.listHeaderLines(); got != 2 {
+		t.Errorf("want 2 (error + search line), got %d", got)
+	}
+}
+
+func TestListHeaderLines_Favorites(t *testing.T) {
+	m := baseModel()
+	m.activeTab = tabFavorites
+	if got := m.listHeaderLines(); got != 0 {
+		t.Errorf("want 0 for favorites tab, got %d", got)
+	}
+}
+
+// --- listHitTest ---
+
+func TestListHitTest_BasicClick(t *testing.T) {
+	m := baseModel()
+	m.height = 40
+	m.loading = false
+	m.activeTab = tabBrowse
+	m.browseStations = stationsOf("a", "b", "c", "d", "e")
+	m.browseIndex = 0
+
+	// listStartY = tabBar(1) + top border(1) + headerLines(1) = 3
+	if got := m.listHitTest(3); got != 0 {
+		t.Errorf("Y=3 should hit station 0, got %d", got)
+	}
+	if got := m.listHitTest(4); got != 1 {
+		t.Errorf("Y=4 should hit station 1, got %d", got)
+	}
+}
+
+func TestListHitTest_OutOfBounds(t *testing.T) {
+	m := baseModel()
+	m.height = 40
+	m.loading = false
+	m.activeTab = tabBrowse
+	m.browseStations = stationsOf("a")
+	m.browseIndex = 0
+
+	if got := m.listHitTest(0); got != -1 {
+		t.Errorf("Y=0 (tab bar) should miss, got %d", got)
+	}
+	if got := m.listHitTest(1); got != -1 {
+		t.Errorf("Y=1 (pane border) should miss, got %d", got)
+	}
+}
+
+func TestListHitTest_HelpTab(t *testing.T) {
+	m := baseModel()
+	m.loading = false
+	m.activeTab = tabHelp
+	if got := m.listHitTest(3); got != -1 {
+		t.Errorf("help tab should always return -1, got %d", got)
+	}
+}
+
+func TestListHitTest_FavoritesTab(t *testing.T) {
+	m := baseModel()
+	m.height = 40
+	m.loading = false
+	m.activeTab = tabFavorites
+	m.favorites = stationsOf("fav0", "fav1")
+	m.favIndex = 0
+
+	// No header lines for favorites: listStartY = 2
+	if got := m.listHitTest(2); got != 0 {
+		t.Errorf("Y=2 on favorites should hit fav0, got %d", got)
+	}
+	if got := m.listHitTest(3); got != 1 {
+		t.Errorf("Y=3 on favorites should hit fav1, got %d", got)
 	}
 }

@@ -112,7 +112,62 @@ func searchStations(query string, gen int) tea.Cmd {
 	}
 }
 
-// activeList returns the station list for the current tab.
+// listHeaderLines returns the number of lines rendered above the station rows
+// inside the list pane (error banner + search/context line).
+func (m *Model) listHeaderLines() int {
+	n := 0
+	if m.browseErr != nil && m.activeTab == tabBrowse {
+		n++ // error line
+		if m.browseIsFallback() {
+			n++ // "directory unavailable — showing favorites" notice
+		}
+	}
+	if m.activeTab == tabBrowse {
+		n++ // search/context line (always present on Browse tab)
+	}
+	return n
+}
+
+// listHitTest maps a terminal Y coordinate to a station index in activeList,
+// or returns -1 if the coordinate is outside the visible station rows.
+// It mirrors the scroll-window calculation in renderListPane.
+func (m *Model) listHitTest(y int) int {
+	if m.activeTab == tabHelp || m.loading {
+		return -1
+	}
+	list := m.activeList()
+	if len(list) == 0 {
+		return -1
+	}
+
+	headerLines := m.listHeaderLines()
+	// innerH mirrors renderListPane: height arg is (m.height - statusBarHeight - tabBarHeight - 2)
+	innerH := (m.height - 5) - headerLines - 2
+	if innerH < 1 {
+		return -1
+	}
+
+	// Reproduce the scroll-window start offset used at render time.
+	idx := m.activeIndex()
+	start := 0
+	if idx > innerH-1 {
+		start = idx - innerH + 1
+	}
+
+	// List rows start at: tabBar(1) + top pane border(1) + headerLines
+	listStartY := 2 + headerLines
+	row := y - listStartY
+	if row < 0 || row >= innerH {
+		return -1
+	}
+	station := start + row
+	if station < 0 || station >= len(list) {
+		return -1
+	}
+	return station
+}
+
+
 // For the Help tab (or Browse fallback when empty), returns favorites.
 func (m *Model) activeList() []radio.Station {
 	switch m.activeTab {
