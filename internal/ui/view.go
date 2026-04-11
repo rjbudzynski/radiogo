@@ -38,9 +38,9 @@ func (m Model) View() string {
 	)
 }
 
-// renderTabBar renders the [ Browse ] [ Favorites ] tabs.
+// renderTabBar renders the [ Browse ] [ Favorites ] [ Help ] tabs.
 func (m Model) renderTabBar(width int) string {
-	tabs := []string{"Browse", "Favorites"}
+	tabs := []string{"Browse", "Favorites", "Help"}
 	var parts []string
 	for i, t := range tabs {
 		if i == m.activeTab {
@@ -50,7 +50,6 @@ func (m Model) renderTabBar(width int) string {
 		}
 	}
 	bar := strings.Join(parts, " ")
-	// right-align app name
 	appName := styleTabInactive.Render("radiogo")
 	gap := width - lipgloss.Width(bar) - lipgloss.Width(appName)
 	if gap > 0 {
@@ -59,22 +58,30 @@ func (m Model) renderTabBar(width int) string {
 	return bar
 }
 
-// renderListPane renders the station list on the left.
+// renderListPane renders the station list (or help content) on the left.
 func (m Model) renderListPane(width, height int) string {
 	innerW := width - 2 // border
-	innerH := height
+
+	// Help tab — static content.
+	if m.activeTab == tabHelp {
+		return stylePane.Width(width).Height(height).Render(renderHelpContent(innerW))
+	}
 
 	var sb strings.Builder
 
-	// Loading / error states.
+	// Loading spinner.
 	if m.loading {
 		sb.WriteString("\n  " + m.spinner.View() + " Loading stations…")
 		return stylePane.Width(width).Height(height).Render(sb.String())
 	}
-	if m.err != nil {
-		return stylePane.Width(width).Height(height).Render(
-			"\n  " + styleErr.Render("Error: "+m.err.Error()),
-		)
+
+	// Inline error banner — shown at top but does not hide the list.
+	if m.browseErr != nil && m.activeTab == tabBrowse {
+		errText := truncate("⚠  "+m.browseErr.Error(), innerW-2)
+		sb.WriteString(styleErr.Render(errText) + "\n")
+		if m.browseIsFallback() {
+			sb.WriteString(styleHelp.Render("  directory unavailable — showing favorites") + "\n")
+		}
 	}
 
 	// Search prompt (browse tab only).
@@ -84,24 +91,38 @@ func (m Model) renderListPane(width, height int) string {
 			searchLine = styleSearchPrompt.Render("/") + " " + m.searchInput.View()
 		} else if m.searchQuery != "" {
 			searchLine = styleHelp.Render("search: " + m.searchQuery + "  (/ to re-search)")
-		} else {
+		} else if !m.browseIsFallback() {
 			searchLine = styleHelp.Render("top stations  (/ to search)")
 		}
 	}
 
 	list := m.activeList()
+	if len(list) == 0 {
+		msg := "No stations."
+		if m.activeTab == tabFavorites {
+			msg = "No favorites yet.  Press f on any station to add one."
+		}
+		content := sb.String() + "\n  " + styleHelp.Render(msg)
+		return stylePaneFocused.Width(width).Height(height).Render(content)
+	}
+
 	idx := m.activeIndex()
-	maxRows := innerH - 2 // leave room for search line + border
+	// Count already-written header lines to size the scroll window.
+	headerLines := strings.Count(sb.String(), "\n")
 	if searchLine != "" {
-		maxRows--
+		headerLines++
+	}
+	innerH := height - headerLines - 2 // borders
+	if innerH < 1 {
+		innerH = 1
 	}
 
 	// Simple scrolling window centred on cursor.
 	start := 0
-	if idx > maxRows-1 {
-		start = idx - maxRows + 1
+	if idx > innerH-1 {
+		start = idx - innerH + 1
 	}
-	end := start + maxRows
+	end := start + innerH
 	if end > len(list) {
 		end = len(list)
 	}
@@ -115,19 +136,13 @@ func (m Model) renderListPane(width, height int) string {
 		var line string
 		switch {
 		case i == idx && isPlaying:
-			prefix := styleItemPlaying.Render("▶ ")
-			favMark := favMarker(isFav, innerW)
-			line = styleItemSelected.Render(prefix+label) + favMark
+			line = styleItemSelected.Render(styleItemPlaying.Render("▶ ")+label) + favMarker(isFav)
 		case i == idx:
-			prefix := "  "
-			favMark := favMarker(isFav, innerW)
-			line = styleItemSelected.Render(prefix+label) + favMark
+			line = styleItemSelected.Render("  "+label) + favMarker(isFav)
 		case isPlaying:
-			prefix := styleItemPlaying.Render("▶ ")
-			line = styleItemPlaying.Render(prefix + label)
+			line = styleItemPlaying.Render("▶ " + label)
 		default:
-			prefix := "  "
-			line = styleItemNormal.Render(prefix + label)
+			line = styleItemNormal.Render("  " + label)
 			if isFav {
 				line += styleItemFav.Render(" ★")
 			}
@@ -137,7 +152,13 @@ func (m Model) renderListPane(width, height int) string {
 
 	content := sb.String()
 	if searchLine != "" {
-		content = searchLine + "\n" + content
+		// Insert search line after any header banner lines.
+		lines := strings.SplitN(content, "\n", headerLines+1)
+		if len(lines) > headerLines {
+			content = strings.Join(lines[:headerLines], "\n") + "\n" + searchLine + "\n" + lines[headerLines]
+		} else {
+			content = searchLine + "\n" + content
+		}
 	}
 
 	paneStyle := stylePane
@@ -147,15 +168,63 @@ func (m Model) renderListPane(width, height int) string {
 	return paneStyle.Width(width).Height(height).Render(content)
 }
 
-func favMarker(isFav bool, _ int) string {
+func favMarker(isFav bool) string {
 	if isFav {
 		return styleItemFav.Render(" ★")
 	}
 	return ""
 }
 
+// renderHelpContent returns the text shown in the list pane on the Help tab.
+func renderHelpContent(width int) string {
+	_ = width
+	var sb strings.Builder
+
+	section := func(title string) {
+		sb.WriteString("\n" + styleSectionTitle.Render(title) + "\n")
+	}
+	row := func(key, desc string) {
+		sb.WriteString(styleInfoLabel.Width(12).Render(key) + styleInfoValue.Render(desc) + "\n")
+	}
+
+	sb.WriteString(styleSectionTitle.Render("radiogo — keyboard shortcuts") + "\n")
+
+	section("Navigation")
+	row("↑ / k", "move up")
+	row("↓ / j", "move down")
+	row("Tab", "cycle tabs: Browse → Favorites → Help")
+	row("Esc", "cancel search")
+
+	section("Playback")
+	row("Enter", "play selected station")
+	row("p", "pause / resume")
+	row("+ / =", "volume up  (+5%)")
+	row("-", "volume down  (−5%)")
+
+	section("Stations")
+	row("/", "search by name  (Browse tab)")
+	row("f", "toggle favorite on selected")
+
+	section("General")
+	row("q / Ctrl+C", "quit")
+
+	sb.WriteString("\n" + styleDivider.Render("─────────────────────────────────") + "\n")
+	sb.WriteString(styleHelp.Render("Stations sourced from radio-browser.info\n"))
+	sb.WriteString(styleHelp.Render("Favorites: ~/.config/radiogo/favorites.json\n"))
+	sb.WriteString(styleHelp.Render("If the directory is unreachable, favorites\n"))
+	sb.WriteString(styleHelp.Render("are shown in Browse as a fallback.\n"))
+
+	return sb.String()
+}
+
 // renderInfoPane renders the right-hand station detail + now playing panel.
 func (m Model) renderInfoPane(width, height int) string {
+	if m.activeTab == tabHelp {
+		return stylePane.Width(width).Height(height).Render(
+			"\n" + styleHelp.Render("  Press Tab to return to Browse or Favorites."),
+		)
+	}
+
 	var sb strings.Builder
 
 	sel := m.selectedStation()
@@ -258,6 +327,9 @@ func (m Model) renderStatusBar(width int) string {
 
 // renderHelpBar renders the one-line key-hint footer.
 func (m Model) renderHelpBar(_ int) string {
+	if m.activeTab == tabHelp {
+		return styleHelp.Render("  Tab  switch tab    q  quit")
+	}
 	hints := []string{
 		keys.Up.Help().Key + " " + keys.Down.Help().Key + " navigate",
 		keys.Enter.Help().Key + " play",

@@ -18,7 +18,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case stationsLoadedMsg:
 		m.loading = false
-		m.err = nil
+		m.browseErr = nil
 		m.browseStations = msg.stations
 		if m.browseIndex >= len(m.browseStations) {
 			m.browseIndex = 0
@@ -27,7 +27,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case stationsErrMsg:
 		m.loading = false
-		m.err = msg.err
+		m.browseErr = msg.err
+		// browseStations stays empty; activeList() will fall back to favorites
 		return m, nil
 
 	case metaUpdateMsg:
@@ -88,10 +89,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case isKey(msg, keys.Tab):
-		m.activeTab = 1 - m.activeTab
+		m.activeTab = (m.activeTab + 1) % 3
 		return m, nil
 
 	case isKey(msg, keys.Up):
+		if m.activeTab == tabHelp {
+			return m, nil
+		}
 		idx := m.activeIndex() - 1
 		if idx < 0 {
 			idx = 0
@@ -100,6 +104,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case isKey(msg, keys.Down):
+		if m.activeTab == tabHelp {
+			return m, nil
+		}
 		list := m.activeList()
 		idx := m.activeIndex() + 1
 		if idx >= len(list) {
@@ -109,9 +116,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case isKey(msg, keys.Enter):
+		if m.activeTab == tabHelp {
+			return m, nil
+		}
 		return m, m.playSelected()
 
 	case isKey(msg, keys.Fav):
+		if m.activeTab == tabHelp {
+			return m, nil
+		}
 		if s := m.selectedStation(); s != nil {
 			m.favorites = favorites.Toggle(m.favorites, *s)
 			go favorites.Save(m.favorites) //nolint:errcheck
@@ -178,7 +191,7 @@ func (m *Model) playSelected() tea.Cmd {
 		},
 	)
 	if err != nil {
-		m.err = err
+		m.browseErr = err
 		m.nowPlaying = nil
 	}
 	return nil

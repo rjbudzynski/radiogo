@@ -13,6 +13,7 @@ import (
 const (
 	tabBrowse    = 0
 	tabFavorites = 1
+	tabHelp      = 2
 )
 
 // Async messages sent by background goroutines into the Bubble Tea loop.
@@ -48,9 +49,9 @@ type Model struct {
 	paused      bool
 
 	// UI state
-	loading bool
-	err     error
-	spinner spinner.Model
+	loading   bool
+	browseErr error // non-fatal: shown as inline banner
+	spinner   spinner.Model
 }
 
 // New constructs a fresh Model.
@@ -105,11 +106,24 @@ func searchStations(query string) tea.Cmd {
 }
 
 // activeList returns the station list for the current tab.
+// For the Help tab (or Browse fallback when empty), returns favorites.
 func (m *Model) activeList() []radio.Station {
-	if m.activeTab == tabFavorites {
+	switch m.activeTab {
+	case tabFavorites:
 		return m.favorites
+	case tabHelp:
+		return nil
+	default: // tabBrowse
+		if len(m.browseStations) == 0 {
+			return m.favorites // fallback when directory unreachable
+		}
+		return m.browseStations
 	}
-	return m.browseStations
+}
+
+// browseIsFallback reports whether the Browse tab is showing favorites as a fallback.
+func (m *Model) browseIsFallback() bool {
+	return m.activeTab == tabBrowse && len(m.browseStations) == 0 && len(m.favorites) > 0
 }
 
 // activeIndex returns/sets the cursor for the current tab.
