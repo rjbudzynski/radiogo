@@ -1,6 +1,10 @@
 package ui
 
 import (
+	"errors"
+	"fmt"
+	"os/exec"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -17,6 +21,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case stationsLoadedMsg:
+		if msg.gen != m.searchGen {
+			return m, nil // discard stale response
+		}
 		m.loading = false
 		m.browseErr = nil
 		m.browseStations = msg.stations
@@ -39,6 +46,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.nowPlaying = nil
 		m.trackTitle = ""
 		m.paused = false
+		return m, nil
+
+	case favSaveErrMsg:
+		m.saveErr = msg.err
 		return m, nil
 
 	case tea.KeyMsg:
@@ -74,7 +85,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.searchQuery = q
 			m.loading = true
 			m.browseIndex = 0
-			return m, tea.Batch(m.spinner.Tick, searchStations(q))
+			m.searchGen++
+			return m, tea.Batch(m.spinner.Tick, searchStations(q, m.searchGen))
 
 		default:
 			var cmd tea.Cmd
@@ -127,7 +139,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if s := m.selectedStation(); s != nil {
 			m.favorites = favorites.Toggle(m.favorites, *s)
-			go favorites.Save(m.favorites) //nolint:errcheck
+			favs := m.favorites
+			return m, func() tea.Msg {
+				if err := favorites.Save(favs); err != nil {
+					return favSaveErrMsg{err}
+				}
+				return nil
+			}
 		}
 		return m, nil
 
@@ -191,15 +209,27 @@ func (m *Model) playSelected() tea.Cmd {
 		},
 	)
 	if err != nil {
-		m.browseErr = err
+		if isExecNotFound(err) {
+			m.browseErr = fmt.Errorf("mpv is required for playback but was not found in PATH")
+		} else {
+			m.browseErr = err
+		}
 		m.nowPlaying = nil
+		return nil
 	}
+	m.player.SetVolume(m.volume)
 	return nil
 }
 
 // isKey is a small helper to check a key binding.
 func isKey(msg tea.KeyMsg, b key.Binding) bool {
 	return key.Matches(msg, b)
+}
+
+// isExecNotFound reports whether err is an "executable not found" error from exec.Command.
+func isExecNotFound(err error) bool {
+	var execErr *exec.Error
+	return errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound
 }
 
 // currentProgram is set by main so callbacks can send messages.

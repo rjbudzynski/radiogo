@@ -1,17 +1,22 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
 const (
-	AppName       = "radiogo"
-	MPVSocketPath = "/tmp/radiogo.sock"
-	APIBase       = "https://de1.api.radio-browser.info/json"
-	APIUserAgent  = "radiogo/1.0 (github.com/rjbudzynski/radiogo)"
-	DefaultLimit  = 40
+	AppName      = "radiogo"
+	APIBase      = "https://all.api.radio-browser.info/json"
+	APIUserAgent = "radiogo/1.0 (github.com/rjbudzynski/radiogo)"
+	DefaultLimit = 40
 )
+
+// MPVSocketPath returns a PID-scoped socket path so multiple instances don't conflict.
+func MPVSocketPath() string {
+	return fmt.Sprintf("/tmp/radiogo-%d.sock", os.Getpid())
+}
 
 func ConfigDir() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {

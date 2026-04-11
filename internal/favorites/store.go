@@ -24,7 +24,7 @@ func Load() ([]radio.Station, error) {
 	return stations, json.Unmarshal(data, &stations)
 }
 
-// Save writes the favorites list to disk and syncs the compat M3U file.
+// Save writes the favorites list to disk atomically and syncs the compat M3U file.
 func Save(stations []radio.Station) error {
 	if err := config.EnsureDirs(); err != nil {
 		return err
@@ -33,9 +33,18 @@ func Save(stations []radio.Station) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(config.FavoritesPath(), data, 0o644); err != nil {
+
+	// Write to a temp file in the same directory, then rename for atomicity.
+	dest := config.FavoritesPath()
+	tmp := dest + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}
+	if err := os.Rename(tmp, dest); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+
 	return writeM3U(stations)
 }
 

@@ -18,10 +18,14 @@ const (
 
 // Async messages sent by background goroutines into the Bubble Tea loop.
 
-type stationsLoadedMsg struct{ stations []radio.Station }
+type stationsLoadedMsg struct {
+	stations []radio.Station
+	gen      int
+}
 type stationsErrMsg struct{ err error }
 type metaUpdateMsg struct{ title string }
 type playerStoppedMsg struct{}
+type favSaveErrMsg struct{ err error }
 
 // Model is the root Bubble Tea model.
 type Model struct {
@@ -40,6 +44,7 @@ type Model struct {
 	// Data
 	browseStations []radio.Station
 	favorites      []radio.Station
+	searchGen      int // incremented on each search/load; stale responses are discarded
 
 	// Playback
 	player      *radio.Player
@@ -51,6 +56,7 @@ type Model struct {
 	// UI state
 	loading   bool
 	browseErr error // non-fatal: shown as inline banner
+	saveErr   error // non-fatal: shown as inline banner
 	spinner   spinner.Model
 }
 
@@ -72,6 +78,7 @@ func New(favs []radio.Station) Model {
 		searchInput:  si,
 		spinner:      sp,
 		loading:      true,
+		searchGen:    1, // matches the gen passed by Init
 	}
 }
 
@@ -79,29 +86,29 @@ func New(favs []radio.Station) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
-		loadTopStations(),
+		loadTopStations(m.searchGen),
 	)
 }
 
 // loadTopStations is a Bubble Tea command that fetches top stations in the background.
-func loadTopStations() tea.Cmd {
+func loadTopStations(gen int) tea.Cmd {
 	return func() tea.Msg {
 		stations, err := radio.TopStations(config.DefaultLimit)
 		if err != nil {
 			return stationsErrMsg{err}
 		}
-		return stationsLoadedMsg{stations}
+		return stationsLoadedMsg{stations, gen}
 	}
 }
 
 // searchStations is a Bubble Tea command for a name search.
-func searchStations(query string) tea.Cmd {
+func searchStations(query string, gen int) tea.Cmd {
 	return func() tea.Msg {
 		stations, err := radio.SearchStations(query, config.DefaultLimit)
 		if err != nil {
 			return stationsErrMsg{err}
 		}
-		return stationsLoadedMsg{stations}
+		return stationsLoadedMsg{stations, gen}
 	}
 }
 

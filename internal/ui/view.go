@@ -102,16 +102,21 @@ func (m Model) renderListPane(width, height int) string {
 		if m.activeTab == tabFavorites {
 			msg = "No favorites yet.  Press f on any station to add one."
 		}
+		if searchLine != "" {
+			sb.WriteString(searchLine + "\n")
+		}
 		content := sb.String() + "\n  " + styleHelp.Render(msg)
 		return stylePaneFocused.Width(width).Height(height).Render(content)
+	}
+
+	// Write the search/context line before the station list.
+	if searchLine != "" {
+		sb.WriteString(searchLine + "\n")
 	}
 
 	idx := m.activeIndex()
 	// Count already-written header lines to size the scroll window.
 	headerLines := strings.Count(sb.String(), "\n")
-	if searchLine != "" {
-		headerLines++
-	}
 	innerH := height - headerLines - 2 // borders
 	if innerH < 1 {
 		innerH = 1
@@ -150,22 +155,11 @@ func (m Model) renderListPane(width, height int) string {
 		sb.WriteString(line + "\n")
 	}
 
-	content := sb.String()
-	if searchLine != "" {
-		// Insert search line after any header banner lines.
-		lines := strings.SplitN(content, "\n", headerLines+1)
-		if len(lines) > headerLines {
-			content = strings.Join(lines[:headerLines], "\n") + "\n" + searchLine + "\n" + lines[headerLines]
-		} else {
-			content = searchLine + "\n" + content
-		}
-	}
-
 	paneStyle := stylePane
 	if !m.searching {
 		paneStyle = stylePaneFocused
 	}
-	return paneStyle.Width(width).Height(height).Render(content)
+	return paneStyle.Width(width).Height(height).Render(sb.String())
 }
 
 func favMarker(isFav bool) string {
@@ -301,6 +295,17 @@ func infoRow(label, value string) string {
 
 // renderStatusBar renders the bottom now-playing status line.
 func (m Model) renderStatusBar(width int) string {
+	// Prioritise error messages over playback status.
+	if m.saveErr != nil {
+		msg := truncate("⚠  could not save favorites: "+m.saveErr.Error(), width-2)
+		content := styleErr.Render(msg)
+		pad := width - lipgloss.Width(content)
+		if pad > 0 {
+			content += strings.Repeat(" ", pad)
+		}
+		return styleStatusBar.Width(width).Render(content)
+	}
+
 	var parts []string
 
 	if m.nowPlaying != nil {
