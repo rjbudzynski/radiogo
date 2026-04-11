@@ -1,4 +1,4 @@
-module github.com/woodz-dot/radiogo
+module github.com/rjbudzynski/radiogo
 
 go 1.26.2
 

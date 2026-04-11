@@ -4,8 +4,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/woodz-dot/radiogo/internal/favorites"
-	"github.com/woodz-dot/radiogo/internal/radio"
+	"github.com/rjbudzynski/radiogo/internal/favorites"
+	"github.com/rjbudzynski/radiogo/internal/radio"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

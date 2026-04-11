@@ -6,8 +6,8 @@ import (
 	"os"
 	"slices"
 
-	"github.com/woodz-dot/radiogo/internal/config"
-	"github.com/woodz-dot/radiogo/internal/radio"
+	"github.com/rjbudzynski/radiogo/internal/config"
+	"github.com/rjbudzynski/radiogo/internal/radio"
 )
 
 // Load reads saved favorites from disk. Returns empty slice on first run.

@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/woodz-dot/radiogo/internal/config"
+	"github.com/rjbudzynski/radiogo/internal/config"
 )
 
 // Station represents a radio station from the Radio Browser API.

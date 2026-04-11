@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/woodz-dot/radiogo/internal/config"
+	"github.com/rjbudzynski/radiogo/internal/config"
 )
 
 // MetaMsg carries an icy-title update from the player goroutine.

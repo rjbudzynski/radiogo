@@ -9,7 +9,7 @@ const (
 	AppName       = "radiogo"
 	MPVSocketPath = "/tmp/radiogo.sock"
 	APIBase       = "https://de1.api.radio-browser.info/json"
-	APIUserAgent  = "radiogo/1.0 (github.com/woodz-dot/radiogo)"
+	APIUserAgent  = "radiogo/1.0 (github.com/rjbudzynski/radiogo)"
 	DefaultLimit  = 40
 )
 

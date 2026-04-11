@@ -6,8 +6,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/woodz-dot/radiogo/internal/config"
-	"github.com/woodz-dot/radiogo/internal/radio"
+	"github.com/rjbudzynski/radiogo/internal/config"
+	"github.com/rjbudzynski/radiogo/internal/radio"
 )
 
 const (

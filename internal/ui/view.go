@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/woodz-dot/radiogo/internal/favorites"
+	"github.com/rjbudzynski/radiogo/internal/favorites"
 )
 
 func (m Model) View() string {

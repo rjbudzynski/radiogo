@@ -6,9 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/woodz-dot/radiogo/internal/config"
-	"github.com/woodz-dot/radiogo/internal/favorites"
-	"github.com/woodz-dot/radiogo/internal/ui"
+	"github.com/rjbudzynski/radiogo/internal/config"
+	"github.com/rjbudzynski/radiogo/internal/favorites"
+	"github.com/rjbudzynski/radiogo/internal/ui"
 )
 
 func main() {
