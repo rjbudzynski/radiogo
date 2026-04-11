@@ -38,7 +38,22 @@ func (m Model) View() string {
 	)
 }
 
-// renderTabBar renders the [ Browse ] [ Favorites ] [ Help ] tabs.
+// tabAtX returns the tab index (0=Browse, 1=Favorites, 2=Help) for a given
+// X coordinate in the tab bar row, or -1 if x doesn't hit any tab.
+func tabAtX(x int) int {
+	labels := []string{"Browse", "Favorites", "Help"}
+	cursor := 0
+	for i, l := range labels {
+		w := lipgloss.Width(styleTabInactive.Render("[ " + l + " ]"))
+		if x >= cursor && x < cursor+w {
+			return i
+		}
+		cursor += w + 1 // +1 for the " " separator between tabs
+	}
+	return -1
+}
+
+
 func (m Model) renderTabBar(width int) string {
 	tabs := []string{"Browse", "Favorites", "Help"}
 	var parts []string

@@ -30,6 +30,32 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
+func TestTabAtX(t *testing.T) {
+	tests := []struct {
+		x    int
+		want int
+	}{
+		{0, 0},  // start of Browse
+		{6, 0},  // middle of Browse
+		{11, 0}, // end of Browse
+		{12, -1}, // separator
+		{13, 1}, // start of Favorites
+		{20, 1}, // middle of Favorites
+		{27, 1}, // end of Favorites
+		{28, -1}, // separator
+		{29, 2}, // start of Help
+		{34, 2}, // middle of Help
+		{38, 2}, // end of Help
+		{39, -1}, // past all tabs
+	}
+	for _, tc := range tests {
+		got := tabAtX(tc.x)
+		if got != tc.want {
+			t.Errorf("tabAtX(%d) = %d, want %d", tc.x, got, tc.want)
+		}
+	}
+}
+
 func TestTruncate_NoEllipsisWhenFits(t *testing.T) {
 	got := truncate("abc", 3)
 	if strings.Contains(got, "…") {
