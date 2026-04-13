@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/rjbudzynski/radiogo/internal/appstate"
 	"github.com/rjbudzynski/radiogo/internal/radio"
 )
 
 func baseModel() Model {
-	m := New(nil)
+	m := New(nil, nil)
 	m.width = 120
 	m.height = 40
 	return m
@@ -213,5 +214,50 @@ func TestListHitTest_FavoritesTab(t *testing.T) {
 	}
 	if got := m.listHitTest(3); got != 1 {
 		t.Errorf("Y=3 on favorites should hit fav1, got %d", got)
+	}
+}
+
+func TestNew_AppliesRestoredState(t *testing.T) {
+	restored := &appstate.State{
+		Volume:      35,
+		ActiveTab:   tabFavorites,
+		SearchQuery: "jazz",
+		SelectedStation: appstate.StationRef{
+			UUID: "fav2",
+			URL:  "http://fav2/stream",
+		},
+	}
+
+	m := New(stationsOf("fav1", "fav2"), restored)
+
+	if m.volume != 35 {
+		t.Fatalf("volume = %d, want 35", m.volume)
+	}
+	if m.activeTab != tabFavorites {
+		t.Fatalf("activeTab = %d, want favorites", m.activeTab)
+	}
+	if m.searchQuery != "jazz" {
+		t.Fatalf("searchQuery = %q, want jazz", m.searchQuery)
+	}
+	if m.favIndex != 1 {
+		t.Fatalf("favIndex = %d, want 1", m.favIndex)
+	}
+}
+
+func TestRestoreBrowseSelection(t *testing.T) {
+	m := baseModel()
+	m.restoredSelection = appstate.StationRef{
+		UUID: "b",
+		URL:  "http://b/stream",
+	}
+	m.browseStations = stationsOf("a", "b", "c")
+
+	m.restoreBrowseSelection()
+
+	if m.browseIndex != 1 {
+		t.Fatalf("browseIndex = %d, want 1", m.browseIndex)
+	}
+	if !m.restoredSelection.IsZero() {
+		t.Fatalf("restoredSelection = %#v, want cleared after restore", m.restoredSelection)
 	}
 }

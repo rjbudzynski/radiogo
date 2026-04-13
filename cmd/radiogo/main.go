@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/rjbudzynski/radiogo/internal/appstate"
 	"github.com/rjbudzynski/radiogo/internal/config"
 	"github.com/rjbudzynski/radiogo/internal/favorites"
 	"github.com/rjbudzynski/radiogo/internal/ui"
@@ -22,7 +23,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "radiogo: could not load favorites: %v\n", err)
 	}
 
-	model := ui.New(favs)
+	state, err := appstate.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "radiogo: could not load saved state: %v\n", err)
+	}
+
+	model := ui.New(favs, state)
 
 	p := tea.NewProgram(
 		model,

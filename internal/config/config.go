@@ -30,6 +30,10 @@ func FavoritesPath() string {
 	return filepath.Join(ConfigDir(), "favorites.json")
 }
 
+func StatePath() string {
+	return filepath.Join(ConfigDir(), "state.json")
+}
+
 // MPVPlaylistPath returns the compat M3U path used by the legacy radiosh script.
 func MPVPlaylistPath() string {
 	home, _ := os.UserHomeDir()

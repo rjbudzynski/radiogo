@@ -53,7 +53,6 @@ func tabAtX(x int) int {
 	return -1
 }
 
-
 func (m Model) renderTabBar(width int) string {
 	tabs := []string{"Browse", "Favorites", "Help"}
 	var parts []string
@@ -322,6 +321,15 @@ func infoRow(label, value string) string {
 // renderStatusBar renders the bottom now-playing status line.
 func (m Model) renderStatusBar(width int) string {
 	// Prioritise error messages over playback status.
+	if m.stateErr != nil {
+		msg := truncate("⚠  could not save state: "+m.stateErr.Error(), width-2)
+		content := styleErr.Render(msg)
+		pad := width - lipgloss.Width(content)
+		if pad > 0 {
+			content += strings.Repeat(" ", pad)
+		}
+		return styleStatusBar.Width(width).Render(content)
+	}
 	if m.saveErr != nil {
 		msg := truncate("⚠  could not save favorites: "+m.saveErr.Error(), width-2)
 		content := styleErr.Render(msg)

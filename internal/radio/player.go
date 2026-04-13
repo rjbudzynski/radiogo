@@ -16,6 +16,9 @@ import (
 // MetaMsg carries an icy-title update from the player goroutine.
 type MetaMsg struct{ Title string }
 
+// PauseStateMsg carries a pause-state update from the player goroutine.
+type PauseStateMsg struct{ Paused bool }
+
 // PlayerStoppedMsg signals mpv has exited.
 type PlayerStoppedMsg struct{ Err error }
 
@@ -32,11 +35,14 @@ type Player struct {
 // MetaCallback is called from a background goroutine when icy-title changes.
 type MetaCallback func(MetaMsg)
 
+// PauseCallback is called from a background goroutine when pause state changes.
+type PauseCallback func(PauseStateMsg)
+
 // StopCallback is called when mpv exits.
 type StopCallback func(PlayerStoppedMsg)
 
 // Play stops any current stream and starts playing url.
-func (p *Player) Play(station Station, onMeta MetaCallback, onStop StopCallback) error {
+func (p *Player) Play(station Station, onMeta MetaCallback, onPause PauseCallback, onStop StopCallback) error {
 	p.Stop()
 
 	p.mu.Lock()
@@ -82,8 +88,8 @@ func (p *Player) Play(station Station, onMeta MetaCallback, onStop StopCallback)
 		p.mu.Unlock()
 
 		if conn != nil {
-			go p.readEvents(conn, onMeta)
-			go p.observeMeta(conn)
+			go p.readEvents(conn, onMeta, onPause)
+			go p.observeProperties(conn)
 		}
 
 		// Wait for mpv to exit.
@@ -99,9 +105,10 @@ func (p *Player) Play(station Station, onMeta MetaCallback, onStop StopCallback)
 	return nil
 }
 
-// observeMeta registers the icy-title observer via mpv IPC.
-func (p *Player) observeMeta(conn net.Conn) {
+// observeProperties registers the properties the UI mirrors via mpv IPC.
+func (p *Player) observeProperties(conn net.Conn) {
 	p.sendCommand(conn, "observe_property", 1, "metadata/by-key/icy-title")
+	p.sendCommand(conn, "observe_property", 2, "pause")
 }
 
 // sendCommand sends a JSON IPC command on conn.
@@ -129,19 +136,37 @@ func (p *Player) sendCommand(conn net.Conn, cmd string, args ...any) bool {
 }
 
 // readEvents reads mpv JSON events from the socket and fires callbacks.
-func (p *Player) readEvents(conn net.Conn, onMeta MetaCallback) {
+func (p *Player) readEvents(conn net.Conn, onMeta MetaCallback, onPause PauseCallback) {
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
 		var ev map[string]any
 		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
 			continue
 		}
-		if ev["event"] == "property-change" {
-			if name, ok := ev["name"].(string); ok && name == "metadata/by-key/icy-title" {
-				if title, ok := ev["data"].(string); ok && onMeta != nil {
-					onMeta(MetaMsg{Title: title})
-				}
-			}
+		dispatchEvent(ev, onMeta, onPause)
+	}
+}
+
+func dispatchEvent(ev map[string]any, onMeta MetaCallback, onPause PauseCallback) {
+	if ev["event"] != "property-change" {
+		return
+	}
+
+	name, ok := ev["name"].(string)
+	if !ok {
+		return
+	}
+
+	switch name {
+	case "metadata/by-key/icy-title":
+		title, ok := ev["data"].(string)
+		if ok && onMeta != nil {
+			onMeta(MetaMsg{Title: title})
+		}
+	case "pause":
+		paused, ok := ev["data"].(bool)
+		if ok && onPause != nil {
+			onPause(PauseStateMsg{Paused: paused})
 		}
 	}
 }

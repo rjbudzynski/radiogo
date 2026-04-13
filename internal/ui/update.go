@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/rjbudzynski/radiogo/internal/appstate"
 	"github.com/rjbudzynski/radiogo/internal/favorites"
 	"github.com/rjbudzynski/radiogo/internal/radio"
 )
@@ -27,19 +28,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.browseErr = nil
 		m.browseStations = msg.stations
-		if m.browseIndex >= len(m.browseStations) {
-			m.browseIndex = 0
-		}
-		return m, nil
+		m.restoreBrowseSelection()
+		return m, m.persistStateCmd()
 
 	case stationsErrMsg:
 		m.loading = false
 		m.browseErr = msg.err
+		if idx := stationIndex(m.favorites, m.restoredSelection); idx >= 0 {
+			m.browseIndex = idx
+		}
+		m.restoredSelection = appstate.StationRef{}
 		// browseStations stays empty; activeList() will fall back to favorites
 		return m, nil
 
 	case metaUpdateMsg:
 		m.trackTitle = msg.title
+		return m, nil
+
+	case pauseStateMsg:
+		m.paused = msg.paused
 		return m, nil
 
 	case playerStoppedMsg:
@@ -52,11 +59,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.saveErr = msg.err
 		return m, nil
 
+	case stateSavedMsg:
+		m.stateErr = nil
+		return m, nil
+
+	case stateSaveErrMsg:
+		m.stateErr = msg.err
+		return m, nil
+
 	case tea.MouseMsg:
 		// Tab bar click (Y=0).
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.Y == 0 {
 			if tab := tabAtX(msg.X); tab >= 0 {
 				m.activeTab = tab
+				return m, m.persistStateCmd()
 			}
 			return m, nil
 		}
@@ -68,7 +84,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				idx = 0
 			}
 			m.setActiveIndex(idx)
-			return m, nil
+			return m, m.persistStateCmd()
 		}
 		if msg.Button == tea.MouseButtonWheelDown && m.activeTab != tabHelp {
 			list := m.activeList()
@@ -77,7 +93,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				idx = len(list) - 1
 			}
 			m.setActiveIndex(idx)
-			return m, nil
+			return m, m.persistStateCmd()
 		}
 
 		// Left click in the list pane — select and play.
@@ -86,7 +102,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.X < leftWidth {
 				if station := m.listHitTest(msg.Y); station >= 0 {
 					m.setActiveIndex(station)
-					return m, m.playSelected()
+					return m, tea.Batch(m.persistStateCmd(), m.playSelected())
 				}
 			}
 		}
@@ -127,7 +143,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.browseIndex = 0
 			m.searchGen++
-			return m, tea.Batch(m.spinner.Tick, searchStations(q, m.searchGen))
+			return m, tea.Batch(m.persistStateCmd(), m.spinner.Tick, searchStations(q, m.searchGen))
 
 		default:
 			var cmd tea.Cmd
@@ -138,12 +154,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case isKey(msg, keys.Quit):
+		if err := appstate.Save(m.stateSnapshot()); err != nil {
+			m.stateErr = err
+		}
 		m.player.Stop()
 		return m, tea.Quit
 
 	case isKey(msg, keys.Tab):
 		m.activeTab = (m.activeTab + 1) % 3
-		return m, nil
+		return m, m.persistStateCmd()
 
 	case isKey(msg, keys.Up):
 		if m.activeTab == tabHelp {
@@ -154,7 +173,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			idx = 0
 		}
 		m.setActiveIndex(idx)
-		return m, nil
+		return m, m.persistStateCmd()
 
 	case isKey(msg, keys.Down):
 		if m.activeTab == tabHelp {
@@ -166,7 +185,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			idx = len(list) - 1
 		}
 		m.setActiveIndex(idx)
-		return m, nil
+		return m, m.persistStateCmd()
 
 	case isKey(msg, keys.Enter):
 		if m.activeTab == tabHelp {
@@ -180,13 +199,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if s := m.selectedStation(); s != nil {
 			m.favorites = favorites.Toggle(m.favorites, *s)
+			m.clampSelection()
 			favs := m.favorites
-			return m, func() tea.Msg {
-				if err := favorites.Save(favs); err != nil {
-					return favSaveErrMsg{err}
-				}
-				return nil
-			}
+			return m, tea.Batch(
+				m.persistStateCmd(),
+				func() tea.Msg {
+					if err := favorites.Save(favs); err != nil {
+						return favSaveErrMsg{err}
+					}
+					return nil
+				},
+			)
 		}
 		return m, nil
 
@@ -201,7 +224,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKey(msg, keys.Pause):
 		if m.player.IsRunning() {
 			m.player.Pause()
-			m.paused = !m.paused
 		}
 		return m, nil
 
@@ -209,6 +231,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.volume < 100 {
 			m.volume += 5
 			m.player.SetVolume(m.volume)
+			return m, m.persistStateCmd()
 		}
 		return m, nil
 
@@ -216,6 +239,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.volume > 0 {
 			m.volume -= 5
 			m.player.SetVolume(m.volume)
+			return m, m.persistStateCmd()
 		}
 		return m, nil
 	}
@@ -241,6 +265,11 @@ func (m *Model) playSelected() tea.Cmd {
 		func(mm radio.MetaMsg) {
 			if prog != nil {
 				prog.Send(metaUpdateMsg{title: mm.Title})
+			}
+		},
+		func(pm radio.PauseStateMsg) {
+			if prog != nil {
+				prog.Send(pauseStateMsg{paused: pm.Paused})
 			}
 		},
 		func(_ radio.PlayerStoppedMsg) {
