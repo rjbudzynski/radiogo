@@ -13,6 +13,10 @@ go run   ./cmd/radiogo      # run directly
 
 No test files exist yet. There is no linter config — `//nolint:errcheck` is used inline where fire-and-forget errors are intentional.
 
+## Git
+
+- Set the author on agent-created commits to `Robert J Budzyński <robert@budzynski.xyz>`.
+
 ## Architecture
 
 ```

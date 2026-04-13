@@ -25,6 +25,7 @@ go build -o radiogo ./cmd/radiogo
 
 ```sh
 radiogo
+radiogo --help
 ```
 
 The app opens in your terminal with three tabs — **Browse**, **Favorites**, and **Help** — navigated by `Tab`.
