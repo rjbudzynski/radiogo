@@ -271,12 +271,7 @@ func renderHelpContent(width int) string {
 	}
 	keyW := 12
 	row := func(key, desc string) {
-		// Clamp desc to whatever space remains after the key column.
-		descW := width - keyW
-		if descW < 1 {
-			descW = 1
-		}
-		sb.WriteString(styleInfoLabel.Width(keyW).Render(key) + styleInfoValue.Width(descW).Render(desc) + "\n")
+		sb.WriteString(renderHelpRow(key, desc, keyW, width))
 	}
 
 	sb.WriteString(styleSectionTitle.Render("radiogo — keyboard shortcuts") + "\n")
@@ -311,7 +306,7 @@ func renderHelpContent(width int) string {
 		"If the directory is unreachable, favorites are shown in Browse as a fallback.\n" +
 		"Backspace clears the name search first, then backs out of categories.\n" +
 		"Browse sort preference is saved automatically."
-	sb.WriteString(lipgloss.NewStyle().Width(width).Inherit(styleHelp).Render(notes) + "\n")
+	sb.WriteString(styleHelp.Render(renderHelpParagraph(notes, width, 2)) + "\n")
 
 	return sb.String()
 }
@@ -527,4 +522,122 @@ func prettyFilterType(s string) string {
 	default:
 		return s
 	}
+}
+
+func renderHelpRow(key, desc string, keyW, width int) string {
+	descW := width - keyW
+	if descW < 1 {
+		descW = 1
+	}
+
+	lines := wrapText(desc, descW)
+	if len(lines) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(styleInfoLabel.Width(keyW).Render(key))
+	sb.WriteString(styleInfoValue.Width(descW).Render(lines[0]))
+	sb.WriteString("\n")
+
+	pad := strings.Repeat(" ", keyW)
+	for _, line := range lines[1:] {
+		sb.WriteString(pad)
+		sb.WriteString(styleInfoValue.Width(descW).Render(line))
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+func renderHelpParagraph(text string, width, indent int) string {
+	if width < 1 {
+		width = 1
+	}
+	if indent < 0 {
+		indent = 0
+	}
+
+	var sb strings.Builder
+	paragraphs := strings.Split(text, "\n")
+	for i, para := range paragraphs {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		lines := wrapText(para, width-indent)
+		if len(lines) == 0 {
+			sb.WriteString(strings.Repeat(" ", indent))
+			continue
+		}
+		for j, line := range lines {
+			if j > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(strings.Repeat(" ", indent))
+			sb.WriteString(line)
+		}
+	}
+	return sb.String()
+}
+
+func wrapText(text string, width int) []string {
+	if width < 1 {
+		width = 1
+	}
+
+	var lines []string
+	for _, para := range strings.Split(text, "\n") {
+		if para == "" {
+			lines = append(lines, "")
+			continue
+		}
+
+		words := strings.Fields(para)
+		if len(words) == 0 {
+			lines = append(lines, "")
+			continue
+		}
+
+		current := words[0]
+		currentLen := len([]rune(current))
+		for currentLen > width {
+			runes := []rune(current)
+			lines = append(lines, string(runes[:width]))
+			current = string(runes[width:])
+			currentLen = len([]rune(current))
+		}
+		for _, word := range words[1:] {
+			wordLen := len([]rune(word))
+			if current == "" {
+				current = word
+				currentLen = wordLen
+				for currentLen > width {
+					runes := []rune(current)
+					lines = append(lines, string(runes[:width]))
+					current = string(runes[width:])
+					currentLen = len([]rune(current))
+				}
+				continue
+			}
+			if currentLen+1+wordLen <= width {
+				current += " " + word
+				currentLen += 1 + wordLen
+				continue
+			}
+			lines = append(lines, current)
+			current = word
+			currentLen = wordLen
+			for currentLen > width {
+				runes := []rune(current)
+				lines = append(lines, string(runes[:width]))
+				current = string(runes[width:])
+				currentLen = len([]rune(current))
+			}
+		}
+		if current != "" {
+			lines = append(lines, current)
+		}
+	}
+
+	return lines
 }
