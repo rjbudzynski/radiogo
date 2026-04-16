@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,6 +32,7 @@ type playerStoppedMsg struct{}
 type favSaveErrMsg struct{ err error }
 type stateSavedMsg struct{}
 type stateSaveErrMsg struct{ err error }
+type persistStateMsg struct{} // triggers deferred state persistence
 
 // Model is the root Bubble Tea model.
 type Model struct {
@@ -64,6 +67,7 @@ type Model struct {
 	saveErr   error // non-fatal: shown as inline banner
 	stateErr  error // non-fatal: shown as inline banner
 	spinner   spinner.Model
+	stateDirty bool // true if state needs persistence (debounced)
 }
 
 // New constructs a fresh Model.
@@ -286,6 +290,14 @@ func (m *Model) persistStateCmd() tea.Cmd {
 		}
 		return stateSavedMsg{}
 	}
+}
+
+// persistStateDelayed returns a command that persists state after a short delay.
+// This debounces rapid state changes (e.g., navigation) to reduce disk I/O.
+func persistStateDelayed() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
+		return persistStateMsg{}
+	})
 }
 
 func (m *Model) restoreBrowseSelection() {

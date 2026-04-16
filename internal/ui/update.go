@@ -29,7 +29,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.browseErr = nil
 		m.browseStations = msg.stations
 		m.restoreBrowseSelection()
-		return m, m.persistStateCmd()
+		m.stateDirty = true
+		return m, persistStateDelayed()
 
 	case stationsErrMsg:
 		m.loading = false
@@ -67,12 +68,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stateErr = msg.err
 		return m, nil
 
+	case persistStateMsg:
+		// Persist state if still dirty after debounce delay.
+		if m.stateDirty {
+			m.stateDirty = false
+			return m, m.persistStateCmd()
+		}
+		return m, nil
+
 	case tea.MouseMsg:
 		// Tab bar click (Y=0).
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.Y == 0 {
 			if tab := tabAtX(msg.X); tab >= 0 {
 				m.activeTab = tab
-				return m, m.persistStateCmd()
+				m.stateDirty = true
+				return m, persistStateDelayed()
 			}
 			return m, nil
 		}
@@ -84,7 +94,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				idx = 0
 			}
 			m.setActiveIndex(idx)
-			return m, m.persistStateCmd()
+			m.stateDirty = true
+			return m, persistStateDelayed()
 		}
 		if msg.Button == tea.MouseButtonWheelDown && m.activeTab != tabHelp {
 			list := m.activeList()
@@ -93,7 +104,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				idx = len(list) - 1
 			}
 			m.setActiveIndex(idx)
-			return m, m.persistStateCmd()
+			m.stateDirty = true
+			return m, persistStateDelayed()
 		}
 
 		// Left click in the list pane — select and play.
@@ -102,7 +114,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.X < leftWidth {
 				if station := m.listHitTest(msg.Y); station >= 0 {
 					m.setActiveIndex(station)
-					return m, tea.Batch(m.persistStateCmd(), m.playSelected())
+					m.stateDirty = true
+					return m, tea.Batch(persistStateDelayed(), m.playSelected())
 				}
 			}
 		}
@@ -162,7 +175,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case isKey(msg, keys.Tab):
 		m.activeTab = (m.activeTab + 1) % 3
-		return m, m.persistStateCmd()
+		m.stateDirty = true
+		return m, persistStateDelayed()
 
 	case isKey(msg, keys.Up):
 		if m.activeTab == tabHelp {
@@ -173,7 +187,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			idx = 0
 		}
 		m.setActiveIndex(idx)
-		return m, m.persistStateCmd()
+		m.stateDirty = true
+		return m, persistStateDelayed()
 
 	case isKey(msg, keys.Down):
 		if m.activeTab == tabHelp {
@@ -185,7 +200,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			idx = len(list) - 1
 		}
 		m.setActiveIndex(idx)
-		return m, m.persistStateCmd()
+		m.stateDirty = true
+		return m, persistStateDelayed()
 
 	case isKey(msg, keys.Enter):
 		if m.activeTab == tabHelp {
@@ -201,8 +217,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.favorites = favorites.Toggle(m.favorites, *s)
 			m.clampSelection()
 			favs := m.favorites
+			m.stateDirty = true
 			return m, tea.Batch(
-				m.persistStateCmd(),
+				persistStateDelayed(),
 				func() tea.Msg {
 					if err := favorites.Save(favs); err != nil {
 						return favSaveErrMsg{err}
@@ -231,7 +248,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.volume < 100 {
 			m.volume += 5
 			m.player.SetVolume(m.volume)
-			return m, m.persistStateCmd()
+			m.stateDirty = true
+			return m, persistStateDelayed()
 		}
 		return m, nil
 
@@ -239,7 +257,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.volume > 0 {
 			m.volume -= 5
 			m.player.SetVolume(m.volume)
-			return m, m.persistStateCmd()
+			m.stateDirty = true
+			return m, persistStateDelayed()
 		}
 		return m, nil
 	}
