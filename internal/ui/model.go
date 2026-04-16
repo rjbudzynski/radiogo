@@ -27,8 +27,72 @@ const (
 	browseModeTags
 	browseModeCountries
 	browseModeLanguages
+	browseModeCodecs
 	browseModeResults
 )
+
+type BrowseSort int
+
+const (
+	browseSortVotesDesc BrowseSort = iota
+	browseSortBitrateDesc
+	browseSortNameAsc
+)
+
+func parseBrowseSort(s string) BrowseSort {
+	switch s {
+	case "bitrate_desc":
+		return browseSortBitrateDesc
+	case "name_asc":
+		return browseSortNameAsc
+	default:
+		return browseSortVotesDesc
+	}
+}
+
+func cycleBrowseSort(s BrowseSort) BrowseSort {
+	switch s {
+	case browseSortVotesDesc:
+		return browseSortBitrateDesc
+	case browseSortBitrateDesc:
+		return browseSortNameAsc
+	default:
+		return browseSortVotesDesc
+	}
+}
+
+func (s BrowseSort) order() (string, bool) {
+	switch s {
+	case browseSortBitrateDesc:
+		return "bitrate", true
+	case browseSortNameAsc:
+		return "name", false
+	default:
+		return "votes", true
+	}
+}
+
+func (s BrowseSort) String() string {
+	switch s {
+	case browseSortBitrateDesc:
+		return "bitrate↓"
+	case browseSortNameAsc:
+		return "name↑"
+	default:
+		return "votes↓"
+	}
+}
+
+func (s BrowseSort) snapshot() string {
+	switch s {
+	case browseSortBitrateDesc:
+		return "bitrate_desc"
+	case browseSortNameAsc:
+		return "name_asc"
+	default:
+		return "votes_desc"
+	}
+}
 
 // Async messages sent by background goroutines into the Bubble Tea loop.
 
@@ -68,8 +132,9 @@ type Model struct {
 	browseMode        BrowseMode
 	browseCategories  []radio.Category
 	browseHistory     []BrowseMode
-	browseFilterType  string // tag, country, language
+	browseFilterType  string // tag, country, language, codec
 	browseFilterValue string
+	browseSort        BrowseSort
 
 	// Data
 	browseStations    []radio.Station
@@ -85,11 +150,11 @@ type Model struct {
 	paused     bool
 
 	// UI state
-	loading   bool
-	browseErr error // non-fatal: shown as inline banner
-	saveErr   error // non-fatal: shown as inline banner
-	stateErr  error // non-fatal: shown as inline banner
-	spinner   spinner.Model
+	loading    bool
+	browseErr  error // non-fatal: shown as inline banner
+	saveErr    error // non-fatal: shown as inline banner
+	stateErr   error // non-fatal: shown as inline banner
+	spinner    spinner.Model
 	stateDirty bool // true if state needs persistence (debounced)
 }
 
@@ -121,6 +186,7 @@ func New(favs []radio.Station, restored *appstate.State) Model {
 	m.volume = clamp(restored.Volume, 0, 100)
 	m.activeTab = normalizeTab(restored.ActiveTab)
 	m.searchQuery = restored.SearchQuery
+	m.browseSort = parseBrowseSort(restored.BrowseSort)
 	m.restoredSelection = restored.SelectedStation
 
 	if idx := stationIndex(favs, restored.SelectedStation); idx >= 0 {
@@ -134,37 +200,51 @@ func New(favs []radio.Station, restored *appstate.State) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
-		loadBrowseStations(m.searchQuery, m.searchGen),
+		m.reloadBrowseCmd(m.searchGen),
 	)
 }
 
-// loadTopStations is a Bubble Tea command that fetches top stations in the background.
-func loadTopStations(gen int) tea.Cmd {
+func (m *Model) browseSearchOptions(name string) radio.SearchOptions {
+	order, reverse := m.browseSort.order()
+	opts := radio.SearchOptions{
+		Order:   order,
+		Reverse: reverse,
+		Limit:   config.DefaultLimit,
+	}
+	if name != "" {
+		opts.Name = name
+	}
+	if m.browseFilterType != "" && m.browseFilterValue != "" {
+		switch m.browseFilterType {
+		case "tag":
+			opts.Tag = m.browseFilterValue
+		case "country":
+			opts.Country = m.browseFilterValue
+		case "language":
+			opts.Language = m.browseFilterValue
+		case "codec":
+			opts.Codec = m.browseFilterValue
+		}
+	}
+	return opts
+}
+
+func (m *Model) reloadBrowseCmd(gen int) tea.Cmd {
 	return func() tea.Msg {
-		stations, err := radio.TopStations(config.DefaultLimit)
+		var (
+			stations []radio.Station
+			err      error
+		)
+		if m.searchQuery == "" && m.browseFilterType == "" && m.browseSort == browseSortVotesDesc {
+			stations, err = radio.TopStations(config.DefaultLimit)
+		} else {
+			stations, err = radio.SearchStationsWithOptions(m.browseSearchOptions(m.searchQuery))
+		}
 		if err != nil {
 			return stationsErrMsg{err}
 		}
 		return stationsLoadedMsg{stations, gen}
 	}
-}
-
-// searchStations is a Bubble Tea command for a name search.
-func searchStations(query string, gen int) tea.Cmd {
-	return func() tea.Msg {
-		stations, err := radio.SearchStations(query, config.DefaultLimit)
-		if err != nil {
-			return stationsErrMsg{err}
-		}
-		return stationsLoadedMsg{stations, gen}
-	}
-}
-
-func loadBrowseStations(query string, gen int) tea.Cmd {
-	if query != "" {
-		return searchStations(query, gen)
-	}
-	return loadTopStations(gen)
 }
 
 func loadTags(gen int) tea.Cmd {
@@ -197,13 +277,22 @@ func loadLanguages(gen int) tea.Cmd {
 	}
 }
 
-func loadStationsByCategory(filterType, value string, gen int) tea.Cmd {
+func loadCodecs(gen int) tea.Cmd {
 	return func() tea.Msg {
-		stations, err := radio.SearchByCategory(filterType, value, config.DefaultLimit)
+		cats, err := radio.ListCodecs(config.DefaultLimit)
 		if err != nil {
 			return stationsErrMsg{err}
 		}
-		return stationsLoadedMsg{stations, gen}
+		return categoriesLoadedMsg{cats, browseModeCodecs, gen}
+	}
+}
+
+func categoryMenuCategories() []radio.Category {
+	return []radio.Category{
+		{Name: "Tags"},
+		{Name: "Countries"},
+		{Name: "Languages"},
+		{Name: "Codecs"},
 	}
 }
 
@@ -288,7 +377,7 @@ func (m *Model) isCategoryMode() bool {
 		return false
 	}
 	switch m.browseMode {
-	case browseModeCategories, browseModeTags, browseModeCountries, browseModeLanguages:
+	case browseModeCategories, browseModeTags, browseModeCountries, browseModeLanguages, browseModeCodecs:
 		return true
 	default:
 		return false
@@ -325,6 +414,8 @@ func (m *Model) currentFilterType() string {
 		return "country"
 	case browseModeLanguages:
 		return "language"
+	case browseModeCodecs:
+		return "codec"
 	default:
 		return ""
 	}
@@ -381,6 +472,7 @@ func (m *Model) stateSnapshot() appstate.State {
 		Volume:          m.volume,
 		ActiveTab:       m.activeTab,
 		SearchQuery:     m.searchQuery,
+		BrowseSort:      m.browseSort.snapshot(),
 		SelectedStation: m.selectedStationRef(),
 	}
 }
@@ -404,7 +496,11 @@ func persistStateDelayed() tea.Cmd {
 }
 
 func (m *Model) restoreBrowseSelection() {
-	if ref := m.restoredSelection; !ref.IsZero() {
+	m.restoreBrowseSelectionWith(m.restoredSelection)
+}
+
+func (m *Model) restoreBrowseSelectionWith(ref appstate.StationRef) {
+	if !ref.IsZero() {
 		if idx := stationIndex(m.browseStations, ref); idx >= 0 {
 			m.browseIndex = idx
 		}

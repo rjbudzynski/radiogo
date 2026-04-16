@@ -103,13 +103,15 @@ func (m Model) renderListPane(width, height int) string {
 	if m.activeTab == tabBrowse {
 		if m.searching {
 			searchLine = styleSearchPrompt.Render("/") + " " + m.searchInput.View()
-		} else if m.searchQuery != "" {
-			searchLine = styleHelp.Render("search: " + m.searchQuery + "  (/ to re-search)")
 		} else {
 			// Breadcrumbs / Mode context
 			switch m.browseMode {
 			case browseModeTop:
-				searchLine = styleHelp.Render("top stations  (/ search, c categories)")
+				if m.searchQuery != "" {
+					searchLine = styleHelp.Render("search: " + m.searchQuery + "  (/ to edit, Backspace to clear)")
+				} else {
+					searchLine = styleHelp.Render("top stations  (/ search, c categories)")
+				}
 			case browseModeCategories:
 				searchLine = styleHelp.Render("Browse > Categories")
 			case browseModeTags:
@@ -118,9 +120,25 @@ func (m Model) renderListPane(width, height int) string {
 				searchLine = styleHelp.Render("Browse > Countries")
 			case browseModeLanguages:
 				searchLine = styleHelp.Render("Browse > Languages")
+			case browseModeCodecs:
+				searchLine = styleHelp.Render("Browse > Codecs")
 			case browseModeResults:
-				searchLine = styleHelp.Render(fmt.Sprintf("Browse > %s > %s", m.browseFilterType, m.browseFilterValue))
+				base := fmt.Sprintf("Browse > %s > %s", prettyFilterType(m.browseFilterType), m.browseFilterValue)
+				if m.searchQuery != "" {
+					searchLine = styleHelp.Render(base + "  · search: " + m.searchQuery)
+				} else {
+					searchLine = styleHelp.Render(base)
+				}
 			}
+		}
+	}
+
+	if m.activeTab == tabBrowse && !m.isCategoryMode() {
+		sortLine := styleHelp.Render("sort: " + m.browseSort.String())
+		if searchLine != "" {
+			searchLine += "  " + sortLine
+		} else {
+			searchLine = sortLine
 		}
 	}
 
@@ -268,7 +286,7 @@ func renderHelpContent(width int) string {
 	row("↓ / j", "move down")
 	row("Tab", "cycle tabs: Browse → Favorites → Help")
 	row("Backspace", "back (browse categories)")
-	row("Esc", "cancel search")
+	row("Esc", "cancel search edit")
 
 	section("Playback")
 	row("Enter", "play selected station")
@@ -277,8 +295,9 @@ func renderHelpContent(width int) string {
 	row("-", "volume down  (−5%)")
 
 	section("Stations")
-	row("/", "search by name  (Browse tab)")
-	row("c", "browse by category (Browse tab)")
+	row("/", "search by name in the current browse context")
+	row("c", "browse categories: tags, countries, languages, codecs")
+	row("s", "cycle sort: votes, bitrate, name")
 	row("f", "toggle favorite on selected")
 
 	section("General")
@@ -289,7 +308,9 @@ func renderHelpContent(width int) string {
 
 	notes := "Stations sourced from radio-browser.info\n" +
 		"Favorites: ~/.config/radiogo/favorites.json\n" +
-		"If the directory is unreachable, favorites are shown in Browse as a fallback."
+		"If the directory is unreachable, favorites are shown in Browse as a fallback.\n" +
+		"Backspace clears the name search first, then backs out of categories.\n" +
+		"Browse sort preference is saved automatically."
 	sb.WriteString(lipgloss.NewStyle().Width(width).Inherit(styleHelp).Render(notes) + "\n")
 
 	return sb.String()
@@ -465,6 +486,9 @@ func (m Model) renderHelpBar(_ int) string {
 	if m.activeTab == tabBrowse {
 		hints = append(hints, keys.Search.Help().Key+" search")
 		hints = append(hints, keys.Category.Help().Key+" cat")
+		if !m.isCategoryMode() {
+			hints = append(hints, keys.Sort.Help().Key+" sort")
+		}
 		if len(m.browseHistory) > 0 {
 			hints = append(hints, keys.Back.Help().Key+" back")
 		}
@@ -488,4 +512,19 @@ func truncate(s string, max int) string {
 		return "…"
 	}
 	return string(runes[:max-1]) + "…"
+}
+
+func prettyFilterType(s string) string {
+	switch s {
+	case "tag":
+		return "Tags"
+	case "country":
+		return "Countries"
+	case "language":
+		return "Languages"
+	case "codec":
+		return "Codecs"
+	default:
+		return s
+	}
 }

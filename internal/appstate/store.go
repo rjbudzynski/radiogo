@@ -20,6 +20,7 @@ type State struct {
 	Volume          int        `json:"volume"`
 	ActiveTab       int        `json:"active_tab,omitempty"`
 	SearchQuery     string     `json:"search_query,omitempty"`
+	BrowseSort      string     `json:"browse_sort,omitempty"`
 	SelectedStation StationRef `json:"selected_station,omitempty"`
 }
 

@@ -28,7 +28,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.browseErr = nil
 		m.browseStations = msg.stations
-		m.restoreBrowseSelection()
+		if m.searchQuery != "" || m.browseMode == browseModeResults {
+			m.browseIndex = 0
+		} else {
+			prev := m.selectedStationRef()
+			m.restoreBrowseSelectionWith(prev)
+		}
 		m.stateDirty = true
 		return m, persistStateDelayed()
 
@@ -160,14 +165,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.searching = false
 			m.searchInput.Blur()
 			q := m.searchInput.Value()
-			if q == "" {
-				return m, nil
-			}
 			m.searchQuery = q
 			m.loading = true
 			m.browseIndex = 0
 			m.searchGen++
-			return m, tea.Batch(m.persistStateCmd(), m.spinner.Tick, searchStations(q, m.searchGen))
+			return m, tea.Batch(m.persistStateCmd(), m.spinner.Tick, m.reloadBrowseCmd(m.searchGen))
 
 		default:
 			var cmd tea.Cmd
@@ -232,8 +234,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					return m, loadCountries(m.searchGen)
 				case 2: // Languages
 					return m, loadLanguages(m.searchGen)
+				case 3: // Codecs
+					return m, loadCodecs(m.searchGen)
 				}
-			case browseModeTags, browseModeCountries, browseModeLanguages:
+			case browseModeTags, browseModeCountries, browseModeLanguages, browseModeCodecs:
 				idx := m.browseIndex
 				if idx >= 0 && idx < len(m.browseCategories) {
 					cat := m.browseCategories[idx]
@@ -243,18 +247,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.browseMode = browseModeResults
 					m.loading = true
 					m.searchGen++
-					return m, loadStationsByCategory(m.browseFilterType, m.browseFilterValue, m.searchGen)
+					return m, tea.Batch(m.persistStateCmd(), m.spinner.Tick, m.reloadBrowseCmd(m.searchGen))
 				}
 			}
 		}
 		return m, m.playSelected()
 
 	case isKey(msg, keys.Back):
+		if m.activeTab == tabBrowse && m.searchQuery != "" {
+			m.searchQuery = ""
+			m.loading = true
+			m.searchGen++
+			return m, tea.Batch(m.persistStateCmd(), m.spinner.Tick, m.reloadBrowseCmd(m.searchGen))
+		}
 		if m.activeTab == tabBrowse && len(m.browseHistory) > 0 {
 			prevMode := m.browseHistory[len(m.browseHistory)-1]
 			m.browseHistory = m.browseHistory[:len(m.browseHistory)-1]
 			m.browseMode = prevMode
 			m.browseIndex = 0
+			if prevMode != browseModeResults {
+				m.browseFilterType = ""
+				m.browseFilterValue = ""
+			}
+			if prevMode == browseModeCategories {
+				m.browseCategories = categoryMenuCategories()
+			}
 			return m, nil
 		}
 		return m, nil
@@ -263,13 +280,18 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activeTab == tabBrowse && m.browseMode == browseModeTop {
 			m.browseHistory = append(m.browseHistory, m.browseMode)
 			m.browseMode = browseModeCategories
-			m.browseCategories = []radio.Category{
-				{Name: "Tags"},
-				{Name: "Countries"},
-				{Name: "Languages"},
-			}
+			m.browseCategories = categoryMenuCategories()
 			m.browseIndex = 0
 			return m, nil
+		}
+		return m, nil
+
+	case isKey(msg, keys.Sort):
+		if m.activeTab == tabBrowse && !m.isCategoryMode() {
+			m.browseSort = cycleBrowseSort(m.browseSort)
+			m.loading = true
+			m.searchGen++
+			return m, tea.Batch(m.persistStateCmd(), m.spinner.Tick, m.reloadBrowseCmd(m.searchGen))
 		}
 		return m, nil
 
@@ -297,7 +319,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKey(msg, keys.Search):
 		if m.activeTab == tabBrowse {
 			m.searching = true
-			m.searchInput.SetValue("")
+			m.searchInput.SetValue(m.searchQuery)
 			m.searchInput.Focus()
 		}
 		return m, nil

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/rjbudzynski/radiogo/internal/config"
@@ -30,6 +31,19 @@ type Station struct {
 type Category struct {
 	Name  string `json:"name"`
 	Count int    `json:"stationcount"`
+}
+
+// SearchOptions describes a Radio Browser station search.
+type SearchOptions struct {
+	Name       string
+	Country    string
+	Language   string
+	Tag        string
+	Codec      string
+	Order      string
+	Reverse    bool
+	Limit      int
+	BitrateMin int
 }
 
 var httpClient = &http.Client{Timeout: 15 * time.Second}
@@ -59,18 +73,62 @@ func apiGet(path string, out any) error {
 
 // TopStations returns the most-voted stations.
 func TopStations(limit int) ([]Station, error) {
-	var stations []Station
-	err := apiGet(fmt.Sprintf("/stations/topvote/%d", limit), &stations)
-	return stations, err
+	return SearchStationsWithOptions(SearchOptions{
+		Order:   "votes",
+		Reverse: true,
+		Limit:   limit,
+	})
 }
 
 // SearchStations searches by name, sorted by votes descending.
 func SearchStations(query string, limit int) ([]Station, error) {
-	q := url.QueryEscape(query)
-	path := fmt.Sprintf("/stations/search?name=%s&limit=%d&order=votes&reverse=true&hidebroken=true", q, limit)
+	return SearchStationsWithOptions(SearchOptions{
+		Name:    query,
+		Order:   "votes",
+		Reverse: true,
+		Limit:   limit,
+	})
+}
+
+// SearchStationsWithOptions performs a station search with optional filters and sorting.
+func SearchStationsWithOptions(opts SearchOptions) ([]Station, error) {
+	path := buildSearchPath(opts)
 	var stations []Station
 	err := apiGet(path, &stations)
 	return stations, err
+}
+
+func buildSearchPath(opts SearchOptions) string {
+	values := url.Values{}
+	if opts.Name != "" {
+		values.Set("name", opts.Name)
+	}
+	if opts.Country != "" {
+		values.Set("country", opts.Country)
+	}
+	if opts.Language != "" {
+		values.Set("language", opts.Language)
+	}
+	if opts.Tag != "" {
+		values.Set("tag", opts.Tag)
+	}
+	if opts.Codec != "" {
+		values.Set("codec", opts.Codec)
+	}
+	if opts.BitrateMin > 0 {
+		values.Set("bitrateMin", strconv.Itoa(opts.BitrateMin))
+	}
+	if opts.Order != "" {
+		values.Set("order", opts.Order)
+	}
+	if opts.Reverse {
+		values.Set("reverse", "true")
+	}
+	if opts.Limit > 0 {
+		values.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	values.Set("hidebroken", "true")
+	return "/stations/search?" + values.Encode()
 }
 
 // ListTags returns tags with at least 100 stations, sorted by station count descending.
@@ -94,11 +152,25 @@ func ListLanguages() ([]Category, error) {
 	return cats, err
 }
 
-// SearchByCategory searches for stations with a specific tag, country, or language.
+// ListCodecs returns codecs sorted by station count descending.
+func ListCodecs(limit int) ([]Category, error) {
+	var cats []Category
+	err := apiGet(fmt.Sprintf("/codecs?limit=%d&order=stationcount&reverse=true&hidebroken=true", limit), &cats)
+	return cats, err
+}
+
+// SearchByCategory searches for stations with a specific tag, country, language, or codec.
 func SearchByCategory(filterType, value string, limit int) ([]Station, error) {
-	q := url.QueryEscape(value)
-	path := fmt.Sprintf("/stations/search?%s=%s&limit=%d&order=votes&reverse=true&hidebroken=true", filterType, q, limit)
-	var stations []Station
-	err := apiGet(path, &stations)
-	return stations, err
+	opts := SearchOptions{Limit: limit, Order: "votes", Reverse: true}
+	switch filterType {
+	case "tag":
+		opts.Tag = value
+	case "country":
+		opts.Country = value
+	case "language":
+		opts.Language = value
+	case "codec":
+		opts.Codec = value
+	}
+	return SearchStationsWithOptions(opts)
 }

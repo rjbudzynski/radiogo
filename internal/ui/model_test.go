@@ -222,6 +222,7 @@ func TestNew_AppliesRestoredState(t *testing.T) {
 		Volume:      35,
 		ActiveTab:   tabFavorites,
 		SearchQuery: "jazz",
+		BrowseSort:  "bitrate_desc",
 		SelectedStation: appstate.StationRef{
 			UUID: "fav2",
 			URL:  "http://fav2/stream",
@@ -239,8 +240,60 @@ func TestNew_AppliesRestoredState(t *testing.T) {
 	if m.searchQuery != "jazz" {
 		t.Fatalf("searchQuery = %q, want jazz", m.searchQuery)
 	}
+	if m.browseSort != browseSortBitrateDesc {
+		t.Fatalf("browseSort = %v, want bitrate desc", m.browseSort)
+	}
 	if m.favIndex != 1 {
 		t.Fatalf("favIndex = %d, want 1", m.favIndex)
+	}
+}
+
+func TestBrowseSortCycle(t *testing.T) {
+	if got := cycleBrowseSort(browseSortVotesDesc); got != browseSortBitrateDesc {
+		t.Fatalf("cycle from votes = %v, want bitrate", got)
+	}
+	if got := cycleBrowseSort(browseSortBitrateDesc); got != browseSortNameAsc {
+		t.Fatalf("cycle from bitrate = %v, want name", got)
+	}
+	if got := cycleBrowseSort(browseSortNameAsc); got != browseSortVotesDesc {
+		t.Fatalf("cycle from name = %v, want votes", got)
+	}
+}
+
+func TestCurrentFilterType_Codecs(t *testing.T) {
+	m := baseModel()
+	m.activeTab = tabBrowse
+	m.browseMode = browseModeCodecs
+	if got := m.currentFilterType(); got != "codec" {
+		t.Fatalf("currentFilterType() = %q, want codec", got)
+	}
+}
+
+func TestCategoryMenuIncludesCodecs(t *testing.T) {
+	menu := categoryMenuCategories()
+	if len(menu) != 4 {
+		t.Fatalf("menu length = %d, want 4", len(menu))
+	}
+	if menu[3].Name != "Codecs" {
+		t.Fatalf("menu[3] = %q, want Codecs", menu[3].Name)
+	}
+}
+
+func TestBrowseSearchOptions_CombinesNameAndCategory(t *testing.T) {
+	m := baseModel()
+	m.browseSort = browseSortBitrateDesc
+	m.browseFilterType = "codec"
+	m.browseFilterValue = "ogg"
+
+	opts := m.browseSearchOptions("jazz")
+	if opts.Name != "jazz" {
+		t.Fatalf("Name = %q, want jazz", opts.Name)
+	}
+	if opts.Codec != "ogg" {
+		t.Fatalf("Codec = %q, want ogg", opts.Codec)
+	}
+	if opts.Order != "bitrate" || !opts.Reverse {
+		t.Fatalf("Order/Reverse = %q/%v, want bitrate/true", opts.Order, opts.Reverse)
 	}
 }
 

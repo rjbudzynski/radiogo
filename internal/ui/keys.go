@@ -9,6 +9,7 @@ type keyMap struct {
 	Enter    key.Binding
 	Fav      key.Binding
 	Search   key.Binding
+	Sort     key.Binding
 	Pause    key.Binding
 	VolUp    key.Binding
 	VolDown  key.Binding
@@ -42,6 +43,10 @@ var keys = keyMap{
 	Search: key.NewBinding(
 		key.WithKeys("/"),
 		key.WithHelp("/", "search"),
+	),
+	Sort: key.NewBinding(
+		key.WithKeys("s"),
+		key.WithHelp("s", "sort"),
 	),
 	Pause: key.NewBinding(
 		key.WithKeys("p"),
