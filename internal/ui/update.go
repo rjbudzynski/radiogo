@@ -42,6 +42,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// browseStations stays empty; activeList() will fall back to favorites
 		return m, nil
 
+	case categoriesLoadedMsg:
+		if msg.gen != m.searchGen {
+			return m, nil
+		}
+		m.loading = false
+		m.browseErr = nil
+		m.browseMode = msg.mode
+		m.browseCategories = msg.categories
+		m.browseIndex = 0
+		return m, nil
+
 	case metaUpdateMsg:
 		m.trackTitle = msg.title
 		return m, nil
@@ -98,10 +109,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, persistStateDelayed()
 		}
 		if msg.Button == tea.MouseButtonWheelDown && m.activeTab != tabHelp {
-			list := m.activeList()
+			count := m.activeCount()
 			idx := m.activeIndex() + 1
-			if idx >= len(list) {
-				idx = len(list) - 1
+			if idx >= count {
+				idx = count - 1
 			}
 			m.setActiveIndex(idx)
 			m.stateDirty = true
@@ -194,10 +205,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activeTab == tabHelp {
 			return m, nil
 		}
-		list := m.activeList()
+		count := m.activeCount()
 		idx := m.activeIndex() + 1
-		if idx >= len(list) {
-			idx = len(list) - 1
+		if idx >= count {
+			idx = count - 1
 		}
 		m.setActiveIndex(idx)
 		m.stateDirty = true
@@ -207,7 +218,60 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activeTab == tabHelp {
 			return m, nil
 		}
+		if m.activeTab == tabBrowse {
+			switch m.browseMode {
+			case browseModeCategories:
+				idx := m.browseIndex
+				m.browseHistory = append(m.browseHistory, m.browseMode)
+				m.loading = true
+				m.searchGen++
+				switch idx {
+				case 0: // Tags
+					return m, loadTags(m.searchGen)
+				case 1: // Countries
+					return m, loadCountries(m.searchGen)
+				case 2: // Languages
+					return m, loadLanguages(m.searchGen)
+				}
+			case browseModeTags, browseModeCountries, browseModeLanguages:
+				idx := m.browseIndex
+				if idx >= 0 && idx < len(m.browseCategories) {
+					cat := m.browseCategories[idx]
+					m.browseFilterValue = cat.Name
+					m.browseFilterType = m.currentFilterType()
+					m.browseHistory = append(m.browseHistory, m.browseMode)
+					m.browseMode = browseModeResults
+					m.loading = true
+					m.searchGen++
+					return m, loadStationsByCategory(m.browseFilterType, m.browseFilterValue, m.searchGen)
+				}
+			}
+		}
 		return m, m.playSelected()
+
+	case isKey(msg, keys.Back):
+		if m.activeTab == tabBrowse && len(m.browseHistory) > 0 {
+			prevMode := m.browseHistory[len(m.browseHistory)-1]
+			m.browseHistory = m.browseHistory[:len(m.browseHistory)-1]
+			m.browseMode = prevMode
+			m.browseIndex = 0
+			return m, nil
+		}
+		return m, nil
+
+	case isKey(msg, keys.Category):
+		if m.activeTab == tabBrowse && m.browseMode == browseModeTop {
+			m.browseHistory = append(m.browseHistory, m.browseMode)
+			m.browseMode = browseModeCategories
+			m.browseCategories = []radio.Category{
+				{Name: "Tags"},
+				{Name: "Countries"},
+				{Name: "Languages"},
+			}
+			m.browseIndex = 0
+			return m, nil
+		}
+		return m, nil
 
 	case isKey(msg, keys.Fav):
 		if m.activeTab == tabHelp {

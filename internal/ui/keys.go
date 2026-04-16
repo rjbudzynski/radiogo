@@ -14,6 +14,8 @@ type keyMap struct {
 	VolDown  key.Binding
 	Quit     key.Binding
 	Escape   key.Binding
+	Back     key.Binding
+	Category key.Binding
 }
 
 var keys = keyMap{
@@ -60,5 +62,13 @@ var keys = keyMap{
 	Escape: key.NewBinding(
 		key.WithKeys("esc"),
 		key.WithHelp("esc", "cancel"),
+	),
+	Back: key.NewBinding(
+		key.WithKeys("backspace"),
+		key.WithHelp("backspace", "back"),
+	),
+	Category: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "categories"),
 	),
 }

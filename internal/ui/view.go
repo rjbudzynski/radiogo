@@ -105,9 +105,27 @@ func (m Model) renderListPane(width, height int) string {
 			searchLine = styleSearchPrompt.Render("/") + " " + m.searchInput.View()
 		} else if m.searchQuery != "" {
 			searchLine = styleHelp.Render("search: " + m.searchQuery + "  (/ to re-search)")
-		} else if !m.browseIsFallback() {
-			searchLine = styleHelp.Render("top stations  (/ to search)")
+		} else {
+			// Breadcrumbs / Mode context
+			switch m.browseMode {
+			case browseModeTop:
+				searchLine = styleHelp.Render("top stations  (/ search, c categories)")
+			case browseModeCategories:
+				searchLine = styleHelp.Render("Browse > Categories")
+			case browseModeTags:
+				searchLine = styleHelp.Render("Browse > Tags")
+			case browseModeCountries:
+				searchLine = styleHelp.Render("Browse > Countries")
+			case browseModeLanguages:
+				searchLine = styleHelp.Render("Browse > Languages")
+			case browseModeResults:
+				searchLine = styleHelp.Render(fmt.Sprintf("Browse > %s > %s", m.browseFilterType, m.browseFilterValue))
+			}
 		}
+	}
+
+	if m.isCategoryMode() {
+		return m.renderCategoryList(width, height, innerW, searchLine)
 	}
 
 	list := m.activeList()
@@ -176,6 +194,45 @@ func (m Model) renderListPane(width, height int) string {
 	return paneStyle.Width(width).Height(height).Render(sb.String())
 }
 
+func (m Model) renderCategoryList(width, height, innerW int, searchLine string) string {
+	var sb strings.Builder
+	if searchLine != "" {
+		sb.WriteString(searchLine + "\n")
+	}
+
+	idx := m.browseIndex
+	headerLines := strings.Count(sb.String(), "\n")
+	innerH := height - headerLines - 2
+	if innerH < 1 {
+		innerH = 1
+	}
+
+	start := 0
+	if idx > innerH-1 {
+		start = idx - innerH + 1
+	}
+	end := start + innerH
+	if end > len(m.browseCategories) {
+		end = len(m.browseCategories)
+	}
+
+	for i := start; i < end; i++ {
+		c := m.browseCategories[i]
+		label := truncate(c.Name, innerW-10)
+		if c.Count > 0 {
+			label = fmt.Sprintf("%- *s %d", innerW-10, label, c.Count)
+		}
+
+		line := styleItemNormal.Render("  " + label)
+		if i == idx {
+			line = styleItemSelected.Render("  " + label)
+		}
+		sb.WriteString(line + "\n")
+	}
+
+	return stylePaneFocused.Width(width).Height(height).Render(sb.String())
+}
+
 func favMarker(isFav bool) string {
 	if isFav {
 		return styleItemFav.Render(" ★")
@@ -210,6 +267,7 @@ func renderHelpContent(width int) string {
 	row("↑ / k", "move up")
 	row("↓ / j", "move down")
 	row("Tab", "cycle tabs: Browse → Favorites → Help")
+	row("Backspace", "back (browse categories)")
 	row("Esc", "cancel search")
 
 	section("Playback")
@@ -220,6 +278,7 @@ func renderHelpContent(width int) string {
 
 	section("Stations")
 	row("/", "search by name  (Browse tab)")
+	row("c", "browse by category (Browse tab)")
 	row("f", "toggle favorite on selected")
 
 	section("General")
@@ -242,6 +301,10 @@ func (m Model) renderInfoPane(width, height int) string {
 		return stylePane.Width(width).Height(height).Render(
 			"\n" + styleHelp.Render("  Press Tab to return to Browse or Favorites."),
 		)
+	}
+
+	if m.isCategoryMode() {
+		return m.renderCategoryInfo(width, height)
 	}
 
 	var sb strings.Builder
@@ -311,6 +374,31 @@ func (m Model) renderInfoPane(width, height int) string {
 	return stylePane.Width(width).Height(height).Render(sb.String())
 }
 
+func (m Model) renderCategoryInfo(width, height int) string {
+	idx := m.browseIndex
+	if idx < 0 || idx >= len(m.browseCategories) {
+		return stylePane.Width(width).Height(height).Render("\n  Select a category.")
+	}
+	cat := m.browseCategories[idx]
+
+	var sb strings.Builder
+	sb.WriteString(styleSectionTitle.Render(cat.Name) + "\n\n")
+	if cat.Count > 0 {
+		sb.WriteString(infoRow("Stations", fmt.Sprintf("%d", cat.Count)))
+	}
+
+	switch m.browseMode {
+	case browseModeCategories:
+		sb.WriteString("\n  Press Enter to browse by " + cat.Name + ".")
+	default:
+		sb.WriteString("\n  Press Enter to see stations for this " + m.currentFilterType() + ".")
+	}
+
+	sb.WriteString("\n\n  Press Backspace to go back.")
+
+	return stylePane.Width(width).Height(height).Render(sb.String())
+}
+
 func infoRow(label, value string) string {
 	if value == "" {
 		return ""
@@ -376,6 +464,10 @@ func (m Model) renderHelpBar(_ int) string {
 	}
 	if m.activeTab == tabBrowse {
 		hints = append(hints, keys.Search.Help().Key+" search")
+		hints = append(hints, keys.Category.Help().Key+" cat")
+		if len(m.browseHistory) > 0 {
+			hints = append(hints, keys.Back.Help().Key+" back")
+		}
 	}
 	hints = append(hints,
 		keys.Tab.Help().Key+" tab",

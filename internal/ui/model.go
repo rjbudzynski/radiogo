@@ -19,6 +19,17 @@ const (
 	tabHelp      = 2
 )
 
+type BrowseMode int
+
+const (
+	browseModeTop BrowseMode = iota
+	browseModeCategories
+	browseModeTags
+	browseModeCountries
+	browseModeLanguages
+	browseModeResults
+)
+
 // Async messages sent by background goroutines into the Bubble Tea loop.
 
 type stationsLoadedMsg struct {
@@ -26,6 +37,11 @@ type stationsLoadedMsg struct {
 	gen      int
 }
 type stationsErrMsg struct{ err error }
+type categoriesLoadedMsg struct {
+	categories []radio.Category
+	mode       BrowseMode
+	gen        int
+}
 type metaUpdateMsg struct{ title string }
 type pauseStateMsg struct{ paused bool }
 type playerStoppedMsg struct{}
@@ -47,6 +63,13 @@ type Model struct {
 	searching   bool
 	searchInput textinput.Model
 	searchQuery string
+
+	// Categorized browsing
+	browseMode        BrowseMode
+	browseCategories  []radio.Category
+	browseHistory     []BrowseMode
+	browseFilterType  string // tag, country, language
+	browseFilterValue string
 
 	// Data
 	browseStations    []radio.Station
@@ -144,6 +167,46 @@ func loadBrowseStations(query string, gen int) tea.Cmd {
 	return loadTopStations(gen)
 }
 
+func loadTags(gen int) tea.Cmd {
+	return func() tea.Msg {
+		cats, err := radio.ListTags(config.DefaultLimit)
+		if err != nil {
+			return stationsErrMsg{err}
+		}
+		return categoriesLoadedMsg{cats, browseModeTags, gen}
+	}
+}
+
+func loadCountries(gen int) tea.Cmd {
+	return func() tea.Msg {
+		cats, err := radio.ListCountries()
+		if err != nil {
+			return stationsErrMsg{err}
+		}
+		return categoriesLoadedMsg{cats, browseModeCountries, gen}
+	}
+}
+
+func loadLanguages(gen int) tea.Cmd {
+	return func() tea.Msg {
+		cats, err := radio.ListLanguages()
+		if err != nil {
+			return stationsErrMsg{err}
+		}
+		return categoriesLoadedMsg{cats, browseModeLanguages, gen}
+	}
+}
+
+func loadStationsByCategory(filterType, value string, gen int) tea.Cmd {
+	return func() tea.Msg {
+		stations, err := radio.SearchByCategory(filterType, value, config.DefaultLimit)
+		if err != nil {
+			return stationsErrMsg{err}
+		}
+		return stationsLoadedMsg{stations, gen}
+	}
+}
+
 // listHeaderLines returns the number of lines rendered above the station rows
 // inside the list pane (error banner + search/context line).
 func (m *Model) listHeaderLines() int {
@@ -219,12 +282,52 @@ func (m *Model) browseIsFallback() bool {
 	return m.activeTab == tabBrowse && len(m.browseStations) == 0 && len(m.favorites) > 0
 }
 
-// activeIndex returns/sets the cursor for the current tab.
+// isCategoryMode reports whether the Browse tab is currently showing category names.
+func (m *Model) isCategoryMode() bool {
+	if m.activeTab != tabBrowse {
+		return false
+	}
+	switch m.browseMode {
+	case browseModeCategories, browseModeTags, browseModeCountries, browseModeLanguages:
+		return true
+	default:
+		return false
+	}
+}
+
+// activeIndex returns/sets the cursor for the current tab/mode.
 func (m *Model) activeIndex() int {
 	if m.activeTab == tabFavorites {
 		return m.favIndex
 	}
 	return m.browseIndex
+}
+
+func (m *Model) activeCount() int {
+	if m.activeTab == tabFavorites {
+		return len(m.favorites)
+	}
+	if m.activeTab == tabHelp {
+		return 0
+	}
+	// tabBrowse
+	if m.isCategoryMode() {
+		return len(m.browseCategories)
+	}
+	return len(m.activeBrowseList())
+}
+
+func (m *Model) currentFilterType() string {
+	switch m.browseMode {
+	case browseModeTags:
+		return "tag"
+	case browseModeCountries:
+		return "country"
+	case browseModeLanguages:
+		return "language"
+	default:
+		return ""
+	}
 }
 
 func (m *Model) setActiveIndex(i int) {

@@ -26,6 +26,12 @@ type Station struct {
 	Favicon  string `json:"favicon"`
 }
 
+// Category represents a metadata group (tag, country, or language).
+type Category struct {
+	Name  string `json:"name"`
+	Count int    `json:"stationcount"`
+}
+
 var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 func apiGet(path string, out any) error {
@@ -62,6 +68,36 @@ func TopStations(limit int) ([]Station, error) {
 func SearchStations(query string, limit int) ([]Station, error) {
 	q := url.QueryEscape(query)
 	path := fmt.Sprintf("/stations/search?name=%s&limit=%d&order=votes&reverse=true&hidebroken=true", q, limit)
+	var stations []Station
+	err := apiGet(path, &stations)
+	return stations, err
+}
+
+// ListTags returns tags with at least 100 stations, sorted by station count descending.
+func ListTags(limit int) ([]Category, error) {
+	var cats []Category
+	err := apiGet(fmt.Sprintf("/tags?limit=%d&order=stationcount&reverse=true&hidebroken=true", limit), &cats)
+	return cats, err
+}
+
+// ListCountries returns countries, sorted by station count descending.
+func ListCountries() ([]Category, error) {
+	var cats []Category
+	err := apiGet("/countries?order=stationcount&reverse=true&hidebroken=true", &cats)
+	return cats, err
+}
+
+// ListLanguages returns languages, sorted by station count descending.
+func ListLanguages() ([]Category, error) {
+	var cats []Category
+	err := apiGet("/languages?order=stationcount&reverse=true&hidebroken=true", &cats)
+	return cats, err
+}
+
+// SearchByCategory searches for stations with a specific tag, country, or language.
+func SearchByCategory(filterType, value string, limit int) ([]Station, error) {
+	q := url.QueryEscape(value)
+	path := fmt.Sprintf("/stations/search?%s=%s&limit=%d&order=votes&reverse=true&hidebroken=true", filterType, q, limit)
 	var stations []Station
 	err := apiGet(path, &stations)
 	return stations, err
