@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
@@ -76,7 +77,13 @@ func (p *Player) Play(station Station, onMeta MetaCallback, onPause PauseCallbac
 		var conn net.Conn
 		for i := 0; i < 30; i++ {
 			time.Sleep(100 * time.Millisecond)
-			c, err := net.Dial("unix", socketPath)
+			var c net.Conn
+			var err error
+			if runtime.GOOS == "windows" {
+				c, err = net.Dial("tcp", socketPath)
+			} else {
+				c, err = net.Dial("unix", socketPath)
+			}
 			if err == nil {
 				conn = c
 				break

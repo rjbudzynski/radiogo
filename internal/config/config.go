@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 const (
@@ -13,12 +14,20 @@ const (
 	DefaultLimit = 40
 )
 
-// MPVSocketPath returns a PID-scoped socket path so multiple instances don't conflict.
+// MPVSocketPath returns a PID-scoped socket path on Unix or a named pipe on Windows.
 func MPVSocketPath() string {
+	if runtime.GOOS == "windows" {
+		return `\\.\pipe\radiogo-mpv`
+	}
 	return fmt.Sprintf("/tmp/radiogo-%d.sock", os.Getpid())
 }
 
 func ConfigDir() string {
+	if runtime.GOOS == "windows" {
+		if appdata := os.Getenv("APPDATA"); appdata != "" {
+			return filepath.Join(appdata, AppName)
+		}
+	}
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, AppName)
 	}
@@ -36,6 +45,11 @@ func StatePath() string {
 
 // MPVPlaylistPath returns the compat M3U path used by the legacy radiosh script.
 func MPVPlaylistPath() string {
+	if runtime.GOOS == "windows" {
+		if appdata := os.Getenv("APPDATA"); appdata != "" {
+			return filepath.Join(appdata, "mpv", "radio.m3u")
+		}
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "mpv", "radio.m3u")
 }
