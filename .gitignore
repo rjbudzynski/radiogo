@@ -2,3 +2,9 @@
 # CLIO (managed automatically)
 .clio/*
 !.clio/instructions.md
+
+# Build
+radiogo
+
+# Project-specific
+conductor/
