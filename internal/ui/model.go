@@ -162,6 +162,7 @@ type Model struct {
 	// UI state
 	loading    bool
 	browseErr  error // non-fatal: shown as inline banner
+	favLoadErr error // non-fatal: shown on Favorites tab
 	saveErr    error // non-fatal: shown as inline banner
 	stateErr   error // non-fatal: shown as inline banner
 	spinner    spinner.Model
@@ -169,7 +170,7 @@ type Model struct {
 }
 
 // New constructs a fresh Model.
-func New(favs []radio.Station, restored *appstate.State) Model {
+func New(favs []radio.Station, restored *appstate.State, favLoadErr error) Model {
 	si := textinput.New()
 	si.Placeholder = "station name…"
 	si.CharLimit = 80
@@ -181,6 +182,7 @@ func New(favs []radio.Station, restored *appstate.State) Model {
 	m := Model{
 		activeTab:   tabBrowse,
 		favorites:   favs,
+		favLoadErr:  favLoadErr,
 		player:      &radio.Player{},
 		volume:      80,
 		searchInput: si,

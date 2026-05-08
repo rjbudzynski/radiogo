@@ -68,15 +68,27 @@ func Contains(stations []radio.Station, s radio.Station) bool {
 	return false
 }
 
-// writeM3U writes a plain M3U file compatible with the legacy radiosh script.
+// writeM3U writes a plain M3U file compatible with the legacy radiosh script,
+// using an atomic tmp+rename to avoid partial writes.
 func writeM3U(stations []radio.Station) error {
-	f, err := os.Create(config.MPVPlaylistPath())
+	dest := config.MPVPlaylistPath()
+	tmp := dest + ".tmp"
+
+	// Explicitly opened and closed so we can detect write errors before the rename.
+	f, err := os.Create(tmp)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	for _, s := range stations {
 		fmt.Fprintf(f, "%s | %s\n", s.Name, s.URL)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		_ = os.Remove(tmp)
+		return err
 	}
 	return nil
 }

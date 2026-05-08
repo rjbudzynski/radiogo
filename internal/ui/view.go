@@ -150,7 +150,11 @@ func (m Model) renderListPane(width, height int) string {
 	if len(list) == 0 {
 		msg := "No stations."
 		if m.activeTab == tabFavorites {
-			msg = "No favorites yet.  Press f on any station to add one."
+			if m.favLoadErr != nil {
+				msg = "⚠  could not load favorites: " + m.favLoadErr.Error()
+			} else {
+				msg = "No favorites yet.  Press f on any station to add one."
+			}
 		}
 		if searchLine != "" {
 			sb.WriteString(searchLine + "\n")

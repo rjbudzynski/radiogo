@@ -9,7 +9,7 @@ import (
 )
 
 func baseModel() Model {
-	m := New(nil, nil)
+	m := New(nil, nil, nil)
 	m.width = 120
 	m.height = 40
 	return m
@@ -229,7 +229,7 @@ func TestNew_AppliesRestoredState(t *testing.T) {
 		},
 	}
 
-	m := New(stationsOf("fav1", "fav2"), restored)
+	m := New(stationsOf("fav1", "fav2"), restored, nil)
 
 	if m.volume != 35 {
 		t.Fatalf("volume = %d, want 35", m.volume)

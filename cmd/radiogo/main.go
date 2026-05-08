@@ -30,8 +30,10 @@ func main() {
 	}
 
 	favs, err := favorites.Load()
+	var favLoadErr error
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "radiogo: could not load favorites: %v\n", err)
+		favLoadErr = err
 	}
 
 	state, err := appstate.Load()
@@ -39,7 +41,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "radiogo: could not load saved state: %v\n", err)
 	}
 
-	model := ui.New(favs, state)
+	model := ui.New(favs, state, favLoadErr)
 
 	p := tea.NewProgram(
 		model,
