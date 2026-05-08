@@ -51,7 +51,7 @@ func Save(stations []radio.Station) error {
 // Toggle adds the station if absent, removes it if present. Returns updated list.
 func Toggle(stations []radio.Station, s radio.Station) []radio.Station {
 	for i, f := range stations {
-		if f.UUID == s.UUID || (f.UUID == "" && f.URL == s.URL) {
+		if sameStation(f, s) {
 			return slices.Delete(stations, i, i+1)
 		}
 	}
@@ -61,11 +61,23 @@ func Toggle(stations []radio.Station, s radio.Station) []radio.Station {
 // Contains reports whether s is in the favorites list.
 func Contains(stations []radio.Station, s radio.Station) bool {
 	for _, f := range stations {
-		if f.UUID == s.UUID || (f.UUID == "" && f.URL == s.URL) {
+		if sameStation(f, s) {
 			return true
 		}
 	}
 	return false
+}
+
+// sameStation reports whether a and b refer to the same station.
+// It compares by UUID when both are non-empty, and falls back to
+// URL comparison when either UUID is missing, so that a station
+// fetched from the API (which always has a UUID) can be matched
+// against one saved before the UUID was known, and vice versa.
+func sameStation(a, b radio.Station) bool {
+	if a.UUID != "" && b.UUID != "" {
+		return a.UUID == b.UUID
+	}
+	return a.URL != "" && a.URL == b.URL
 }
 
 // writeM3U writes a plain M3U file compatible with the legacy radiosh script,

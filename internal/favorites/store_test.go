@@ -75,3 +75,54 @@ func TestContains_FallbackToURL(t *testing.T) {
 		t.Error("Contains: expected URL-based match")
 	}
 }
+
+func TestToggle_SymmetricURLMatch_StoredHasUUID(t *testing.T) {
+	// Stored station has UUID, incoming has same URL but empty UUID.
+	stored := radio.Station{UUID: "abc", Name: "Stored", URL: "http://example/stream"}
+	incoming := radio.Station{UUID: "", Name: "Incoming", URL: "http://example/stream"}
+
+	favs := []radio.Station{stored}
+	favs = favorites.Toggle(favs, incoming)
+	if len(favs) != 0 {
+		t.Fatalf("want 0 favorites after toggle-remove (URL match against UUID entry), got %d", len(favs))
+	}
+}
+
+func TestToggle_SymmetricURLMatch_IncomingHasUUID(t *testing.T) {
+	// Stored station has empty UUID, incoming has UUID and same URL.
+	// The old code already handled this case, but we test it explicitly
+	// for confidence in the refactored sameStation helper.
+	stored := radio.Station{UUID: "", Name: "Stored", URL: "http://example/stream"}
+	incoming := radio.Station{UUID: "abc", Name: "Incoming", URL: "http://example/stream"}
+
+	favs := []radio.Station{stored}
+	favs = favorites.Toggle(favs, incoming)
+	if len(favs) != 0 {
+		t.Fatalf("want 0 favorites after toggle-remove (UUID match against URL entry), got %d", len(favs))
+	}
+}
+
+func TestContains_SymmetricURLMatch_StoredHasUUID(t *testing.T) {
+	stored := radio.Station{UUID: "abc", URL: "http://example/stream"}
+	incoming := radio.Station{UUID: "", URL: "http://example/stream"}
+	if !favorites.Contains([]radio.Station{stored}, incoming) {
+		t.Error("Contains: expected match when stored has UUID and incoming has empty UUID")
+	}
+}
+
+func TestContains_SymmetricURLMatch_IncomingHasUUID(t *testing.T) {
+	stored := radio.Station{UUID: "", URL: "http://example/stream"}
+	incoming := radio.Station{UUID: "abc", URL: "http://example/stream"}
+	if !favorites.Contains([]radio.Station{stored}, incoming) {
+		t.Error("Contains: expected match when stored has empty UUID and incoming has UUID")
+	}
+}
+
+func TestSameStation_DifferentURLsNotMatched(t *testing.T) {
+	a := radio.Station{UUID: "", URL: "http://a.example/stream"}
+	b := radio.Station{UUID: "", URL: "http://b.example/stream"}
+	// Both have empty UUIDs and different URLs — not a match.
+	if favorites.Contains([]radio.Station{a}, b) {
+		t.Error("Contains: should not match stations with different URLs when UUIDs are empty")
+	}
+}
