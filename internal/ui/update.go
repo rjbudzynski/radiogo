@@ -333,6 +333,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKey(msg, keys.VolUp):
 		if m.volume < 100 {
 			m.volume += 5
+			if m.volume > 100 {
+				m.volume = 100
+			}
 			m.player.SetVolume(m.volume)
 			m.stateDirty = true
 			return m, persistStateDelayed()
@@ -342,6 +345,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKey(msg, keys.VolDown):
 		if m.volume > 0 {
 			m.volume -= 5
+			if m.volume < 0 {
+				m.volume = 0
+			}
 			m.player.SetVolume(m.volume)
 			m.stateDirty = true
 			return m, persistStateDelayed()
@@ -367,6 +373,7 @@ func (m *Model) playSelected() tea.Cmd {
 
 	err := m.player.Play(
 		station,
+		m.volume,
 		func(mm radio.MetaMsg) {
 			if prog != nil {
 				prog.Send(metaUpdateMsg{title: mm.Title})
@@ -392,7 +399,6 @@ func (m *Model) playSelected() tea.Cmd {
 		m.nowPlaying = nil
 		return nil
 	}
-	m.player.SetVolume(m.volume)
 	return nil
 }
 

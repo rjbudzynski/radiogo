@@ -114,6 +114,16 @@ type stateSavedMsg struct{}
 type stateSaveErrMsg struct{ err error }
 type persistStateMsg struct{} // triggers deferred state persistence
 
+// PlayerController is the subset of Player the model needs, broken out as an
+// interface so tests can verify playback commands without a real mpv.
+type PlayerController interface {
+	Play(station radio.Station, volume int, onMeta radio.MetaCallback, onPause radio.PauseCallback, onStop radio.StopCallback) error
+	Pause()
+	SetVolume(vol int)
+	Stop()
+	IsRunning() bool
+}
+
 // Model is the root Bubble Tea model.
 type Model struct {
 	// Layout
@@ -143,7 +153,7 @@ type Model struct {
 	restoredSelection appstate.StationRef
 
 	// Playback
-	player     *radio.Player
+	player     PlayerController
 	nowPlaying *radio.Station
 	trackTitle string
 	volume     int

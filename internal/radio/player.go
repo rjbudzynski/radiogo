@@ -43,7 +43,8 @@ type PauseCallback func(PauseStateMsg)
 type StopCallback func(PlayerStoppedMsg)
 
 // Play stops any current stream and starts playing url.
-func (p *Player) Play(station Station, onMeta MetaCallback, onPause PauseCallback, onStop StopCallback) error {
+// volume is the initial mpv volume (0-100), applied as soon as the IPC socket connects.
+func (p *Player) Play(station Station, volume int, onMeta MetaCallback, onPause PauseCallback, onStop StopCallback) error {
 	p.Stop()
 
 	p.mu.Lock()
@@ -95,6 +96,7 @@ func (p *Player) Play(station Station, onMeta MetaCallback, onPause PauseCallbac
 		p.mu.Unlock()
 
 		if conn != nil {
+			p.sendCommand(conn, "set_property", "volume", volume)
 			go p.readEvents(conn, onMeta, onPause)
 			go p.observeProperties(conn)
 		}
