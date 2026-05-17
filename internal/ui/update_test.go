@@ -129,3 +129,43 @@ func TestStationsLoadedMsg_ResetsSelectionForCategoryResults(t *testing.T) {
 		t.Fatalf("browseIndex = %d, want 0 for category results", got.browseIndex)
 	}
 }
+
+func TestHandleKey_SearchEnterWithEmptyQueryAndNoPriorSearchIsNoOp(t *testing.T) {
+	m := baseModel()
+	m.loading = false
+	m.activeTab = tabBrowse
+	m.searching = true
+	// searchInput starts empty in baseModel; searchQuery is also empty.
+
+	updated, cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatal("expected no command when pressing Enter with empty input and no prior search")
+	}
+
+	got := updated.(Model)
+	if got.searchQuery != "" {
+		t.Fatalf("searchQuery = %q, want empty", got.searchQuery)
+	}
+}
+
+func TestHandleKey_SearchEnterWithEmptyQueryButPriorSearchDispatchesSearch(t *testing.T) {
+	m := baseModel()
+	m.activeTab = tabBrowse
+	m.searchQuery = "jazz"
+	m.searching = true
+	// searchInput starts empty in baseModel, so the input field is empty
+	// but searchQuery shows the prior query.
+
+	updated, cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected command when pressing Enter with prior search query even if input is empty")
+	}
+
+	got := updated.(Model)
+	if !got.loading {
+		t.Fatal("expected loading=true")
+	}
+	if got.searchQuery != "" {
+		t.Fatalf("searchQuery = %q, want empty (cleared by empty Enter)", got.searchQuery)
+	}
+}

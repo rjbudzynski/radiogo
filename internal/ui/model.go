@@ -363,7 +363,7 @@ func (m *Model) listHitTest(y int) int {
 	return station
 }
 
-// For the Help tab (or Browse fallback when empty), returns favorites.
+// For the Help tab (or Browse fallback when directory unreachable), returns favorites.
 func (m *Model) activeList() []radio.Station {
 	switch m.activeTab {
 	case tabFavorites:
@@ -371,16 +371,17 @@ func (m *Model) activeList() []radio.Station {
 	case tabHelp:
 		return nil
 	default: // tabBrowse
-		if len(m.browseStations) == 0 {
+		if len(m.browseStations) == 0 && m.browseErr != nil {
 			return m.favorites // fallback when directory unreachable
 		}
 		return m.browseStations
 	}
 }
 
-// browseIsFallback reports whether the Browse tab is showing favorites as a fallback.
+// browseIsFallback reports whether the Browse tab is showing favorites as a fallback
+// due to a directory error (not zero search results).
 func (m *Model) browseIsFallback() bool {
-	return m.activeTab == tabBrowse && len(m.browseStations) == 0 && len(m.favorites) > 0
+	return m.activeTab == tabBrowse && len(m.browseStations) == 0 && len(m.favorites) > 0 && m.browseErr != nil
 }
 
 // isCategoryMode reports whether the Browse tab is currently showing category names.
@@ -456,7 +457,7 @@ func (m *Model) stationForTab(tab int) *radio.Station {
 	case tabFavorites:
 		return stationAt(m.favorites, m.favIndex)
 	case tabBrowse:
-		if len(m.browseStations) == 0 {
+		if len(m.browseStations) == 0 && m.browseErr != nil {
 			return stationAt(m.favorites, m.browseIndex)
 		}
 		return stationAt(m.browseStations, m.browseIndex)
@@ -527,7 +528,7 @@ func (m *Model) clampSelection() {
 }
 
 func (m *Model) activeBrowseList() []radio.Station {
-	if len(m.browseStations) == 0 {
+	if len(m.browseStations) == 0 && m.browseErr != nil {
 		return m.favorites
 	}
 	return m.browseStations

@@ -149,12 +149,19 @@ func (m Model) renderListPane(width, height int) string {
 	list := m.activeList()
 	if len(list) == 0 {
 		msg := "No stations."
-		if m.activeTab == tabFavorites {
+		switch {
+		case m.activeTab == tabFavorites:
 			if m.favLoadErr != nil {
 				msg = "⚠  could not load favorites: " + m.favLoadErr.Error()
 			} else {
 				msg = "No favorites yet.  Press f on any station to add one."
 			}
+		case m.activeTab == tabBrowse && m.searchQuery != "":
+			msg = "No stations matching \"" + m.searchQuery + "\"."
+		case m.activeTab == tabBrowse && m.browseFilterType != "":
+			msg = "No stations found."
+		case m.activeTab == tabBrowse:
+			msg = "No stations available."
 		}
 		if searchLine != "" {
 			sb.WriteString(searchLine + "\n")

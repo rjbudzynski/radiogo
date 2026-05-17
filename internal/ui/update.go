@@ -165,6 +165,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.searching = false
 			m.searchInput.Blur()
 			q := m.searchInput.Value()
+			if q == "" && m.searchQuery == "" {
+				return m, nil
+			}
 			m.searchQuery = q
 			m.loading = true
 			m.browseIndex = 0

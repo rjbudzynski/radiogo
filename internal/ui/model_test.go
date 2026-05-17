@@ -39,6 +39,7 @@ func TestActiveList_BrowseFallback(t *testing.T) {
 	m := baseModel()
 	m.activeTab = tabBrowse
 	m.browseStations = nil
+	m.browseErr = fmt.Errorf("api unreachable")
 	m.favorites = stationsOf("fav1")
 	list := m.activeList()
 	if len(list) != 1 || list[0].UUID != "fav1" {
@@ -71,6 +72,7 @@ func TestBrowseIsFallback_True(t *testing.T) {
 	m := baseModel()
 	m.activeTab = tabBrowse
 	m.browseStations = nil
+	m.browseErr = fmt.Errorf("api unreachable")
 	m.favorites = stationsOf("x")
 	if !m.browseIsFallback() {
 		t.Error("expected browseIsFallback() = true")
@@ -83,6 +85,29 @@ func TestBrowseIsFallback_FalseWhenStationsExist(t *testing.T) {
 	m.browseStations = stationsOf("a")
 	if m.browseIsFallback() {
 		t.Error("expected browseIsFallback() = false when browse stations exist")
+	}
+}
+
+func TestBrowseIsFallback_FalseWhenNoError(t *testing.T) {
+	m := baseModel()
+	m.activeTab = tabBrowse
+	m.browseStations = nil
+	m.browseErr = nil // API succeeded but returned zero results
+	m.favorites = stationsOf("x")
+	if m.browseIsFallback() {
+		t.Error("expected browseIsFallback() = false when browseErr is nil (zero results, not fallback)")
+	}
+}
+
+func TestActiveList_EmptyOnZeroResults(t *testing.T) {
+	m := baseModel()
+	m.activeTab = tabBrowse
+	m.browseStations = nil
+	m.browseErr = nil // API succeeded, zero results
+	m.favorites = stationsOf("fav1")
+	list := m.activeList()
+	if len(list) != 0 {
+		t.Fatalf("expected empty list for zero results, got %d items", len(list))
 	}
 }
 
