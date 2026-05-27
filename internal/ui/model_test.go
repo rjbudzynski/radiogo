@@ -360,20 +360,20 @@ func TestRecordHistory_AddsEntry(t *testing.T) {
 	}
 }
 
-func TestRecordHistory_CapsAtSix(t *testing.T) {
+func TestRecordHistory_CapsAtTen(t *testing.T) {
 	m := baseModel()
 	now := time.Now()
-	for i := range 10 {
+	for i := range 15 {
 		m.recordHistory(now, fmt.Sprintf("S%d", i), fmt.Sprintf("T%d", i))
 	}
-	if len(m.recentHistory) != 6 {
-		t.Fatalf("len = %d, want 6", len(m.recentHistory))
+	if len(m.recentHistory) != 10 {
+		t.Fatalf("len = %d, want 10", len(m.recentHistory))
 	}
-	if m.recentHistory[0].StationName != "S9" {
-		t.Fatalf("newest = %q, want S9", m.recentHistory[0].StationName)
+	if m.recentHistory[0].StationName != "S14" {
+		t.Fatalf("newest = %q, want S14", m.recentHistory[0].StationName)
 	}
-	if m.recentHistory[5].StationName != "S4" {
-		t.Fatalf("oldest = %q, want S4", m.recentHistory[5].StationName)
+	if m.recentHistory[9].StationName != "S5" {
+		t.Fatalf("oldest = %q, want S5", m.recentHistory[9].StationName)
 	}
 }
 

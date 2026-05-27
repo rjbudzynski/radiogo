@@ -165,7 +165,7 @@ type Model struct {
 	trackTitle    string
 	volume        int
 	paused        bool
-	recentHistory []recentEntry // up to 6 most recent; newest first
+	recentHistory []recentEntry // up to 10 most recent; newest first
 
 	// UI state
 	loading    bool
@@ -612,14 +612,14 @@ func normalizeTab(tab int) int {
 	return tab
 }
 
-// recordHistory prepends a playback entry and caps the slice at 6.
+// recordHistory prepends a playback entry and caps the slice at 10.
 func (m *Model) recordHistory(t time.Time, stationName, trackTitle string) {
 	m.recentHistory = append(
 		[]recentEntry{{Time: t, StationName: stationName, TrackTitle: trackTitle}},
 		m.recentHistory...,
 	)
-	if len(m.recentHistory) > 6 {
-		m.recentHistory = m.recentHistory[:6]
+	if len(m.recentHistory) > 10 {
+		m.recentHistory = m.recentHistory[:10]
 	}
 	m.stateDirty = true
 }
