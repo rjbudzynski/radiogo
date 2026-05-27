@@ -402,20 +402,16 @@ func (m Model) renderInfoPane(width, height int) string {
 	if len(m.recentHistory) > 0 {
 		sb.WriteString("\n" + styleDivider.Render(strings.Repeat("─", width-4)) + "\n")
 		sb.WriteString(styleHelp.Render("Recently played") + "\n")
-		lastStation := ""
+		emittedStation := false
 		for _, entry := range m.recentHistory {
 			ts := entry.Time.Format("15:04")
 			if entry.TrackTitle != "" {
-				if entry.StationName != "" && entry.StationName != lastStation {
-					sb.WriteString(styleInfoValue.Render("  " + ts + "  " + truncate(entry.StationName, width-14)) + "\n")
-					lastStation = entry.StationName
-				}
-				sb.WriteString(styleNowPlaying.Render("  " + ts + "  ♪ " + truncate(entry.TrackTitle, width-16)) + "\n")
-			} else if entry.StationName != "" && entry.StationName != lastStation {
+				sb.WriteString(styleInfoValue.Render("  " + ts + "  ♪ " + truncate(entry.TrackTitle, width-16)) + "\n")
+				emittedStation = false
+			} else if entry.StationName != "" && !emittedStation {
 				sb.WriteString(styleInfoValue.Render("  " + ts + "  " + truncate(entry.StationName, width-14)) + "\n")
-				lastStation = entry.StationName
+				emittedStation = true
 			}
-			// else: empty track, same station → skip (redundant)
 		}
 	}
 
