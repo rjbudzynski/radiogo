@@ -97,7 +97,26 @@ func (p *Player) Play(station Station, volume int, onMeta MetaCallback, onPause 
 
 		if conn != nil {
 			p.sendCommand(conn, "set_property", "volume", volume)
-			go p.readEvents(conn, onMeta, onPause)
+
+			// Wrap callbacks with generation guards so that buffered events
+			// from a killed mpv process don't corrupt the current playback.
+			guardedMeta := func(m MetaMsg) {
+				p.mu.Lock()
+				stale := p.generation != gen
+				p.mu.Unlock()
+				if !stale && onMeta != nil {
+					onMeta(m)
+				}
+			}
+			guardedPause := func(ps PauseStateMsg) {
+				p.mu.Lock()
+				stale := p.generation != gen
+				p.mu.Unlock()
+				if !stale && onPause != nil {
+					onPause(ps)
+				}
+			}
+			go p.readEvents(conn, guardedMeta, guardedPause)
 			go p.observeProperties(conn)
 		}
 
