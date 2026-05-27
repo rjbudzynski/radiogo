@@ -213,6 +213,17 @@ func New(favs []radio.Station, restored *appstate.State, favLoadErr error) Model
 		m.favIndex = idx
 	}
 
+	if len(restored.RecentHistory) > 0 {
+		m.recentHistory = make([]recentEntry, len(restored.RecentHistory))
+		for i, e := range restored.RecentHistory {
+			m.recentHistory[i] = recentEntry{
+				Time:        e.Time,
+				StationName: e.StationName,
+				TrackTitle:  e.TrackTitle,
+			}
+		}
+	}
+
 	return m
 }
 
@@ -489,12 +500,21 @@ func (m *Model) selectedStationRef() appstate.StationRef {
 }
 
 func (m *Model) stateSnapshot() appstate.State {
+	history := make([]appstate.RecentEntry, len(m.recentHistory))
+	for i, e := range m.recentHistory {
+		history[i] = appstate.RecentEntry{
+			Time:        e.Time,
+			StationName: e.StationName,
+			TrackTitle:  e.TrackTitle,
+		}
+	}
 	return appstate.State{
 		Volume:          m.volume,
 		ActiveTab:       m.activeTab,
 		SearchQuery:     m.searchQuery,
 		BrowseSort:      m.browseSort.snapshot(),
 		SelectedStation: m.selectedStationRef(),
+		RecentHistory:   history,
 	}
 }
 
