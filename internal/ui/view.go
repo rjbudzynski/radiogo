@@ -402,15 +402,14 @@ func (m Model) renderInfoPane(width, height int) string {
 	if len(m.recentHistory) > 0 {
 		sb.WriteString("\n" + styleDivider.Render(strings.Repeat("─", width-4)) + "\n")
 		sb.WriteString(styleHelp.Render("Recently played") + "\n")
-		emittedStation := false
+		lastEmittedStation := ""
 		for _, entry := range m.recentHistory {
 			ts := entry.Time.Format("15:04")
 			if entry.TrackTitle != "" {
 				sb.WriteString(styleInfoValue.Render("  " + ts + "  ♪ " + truncate(entry.TrackTitle, width-16)) + "\n")
-				emittedStation = false
-			} else if entry.StationName != "" && !emittedStation {
+			} else if entry.StationName != "" && entry.StationName != lastEmittedStation {
 				sb.WriteString(styleInfoValue.Render("  " + ts + "  " + truncate(entry.StationName, width-14)) + "\n")
-				emittedStation = true
+				lastEmittedStation = entry.StationName
 			}
 		}
 	}
