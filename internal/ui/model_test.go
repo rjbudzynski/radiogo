@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/rjbudzynski/radiogo/internal/appstate"
 	"github.com/rjbudzynski/radiogo/internal/radio"
@@ -337,5 +338,60 @@ func TestRestoreBrowseSelection(t *testing.T) {
 	}
 	if !m.restoredSelection.IsZero() {
 		t.Fatalf("restoredSelection = %#v, want cleared after restore", m.restoredSelection)
+	}
+}
+
+func TestRecordHistory_AddsEntry(t *testing.T) {
+	m := baseModel()
+	now := time.Now()
+	m.recordHistory(now, "Jazz FM", "Take Five")
+	if len(m.recentHistory) != 1 {
+		t.Fatalf("len = %d, want 1", len(m.recentHistory))
+	}
+	e := m.recentHistory[0]
+	if !e.Time.Equal(now) {
+		t.Fatalf("time = %v, want %v", e.Time, now)
+	}
+	if e.StationName != "Jazz FM" {
+		t.Fatalf("station = %q, want Jazz FM", e.StationName)
+	}
+	if e.TrackTitle != "Take Five" {
+		t.Fatalf("track = %q, want Take Five", e.TrackTitle)
+	}
+}
+
+func TestRecordHistory_CapsAtSix(t *testing.T) {
+	m := baseModel()
+	now := time.Now()
+	for i := range 10 {
+		m.recordHistory(now, fmt.Sprintf("S%d", i), fmt.Sprintf("T%d", i))
+	}
+	if len(m.recentHistory) != 6 {
+		t.Fatalf("len = %d, want 6", len(m.recentHistory))
+	}
+	if m.recentHistory[0].StationName != "S9" {
+		t.Fatalf("newest = %q, want S9", m.recentHistory[0].StationName)
+	}
+	if m.recentHistory[5].StationName != "S4" {
+		t.Fatalf("oldest = %q, want S4", m.recentHistory[5].StationName)
+	}
+}
+
+func TestRecordHistory_NoDedup(t *testing.T) {
+	m := baseModel()
+	now := time.Now()
+	m.recordHistory(now, "Jazz FM", "Take Five")
+	m.recordHistory(now, "Jazz FM", "Take Five")
+	if len(m.recentHistory) != 2 {
+		t.Fatalf("len = %d, want 2 (no dedup)", len(m.recentHistory))
+	}
+}
+
+func TestRecordHistory_MarksStateDirty(t *testing.T) {
+	m := baseModel()
+	m.stateDirty = false
+	m.recordHistory(time.Now(), "X", "")
+	if !m.stateDirty {
+		t.Fatal("expected stateDirty = true after recordHistory")
 	}
 }
