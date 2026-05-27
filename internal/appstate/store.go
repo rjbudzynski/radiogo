@@ -3,6 +3,7 @@ package appstate
 import (
 	"encoding/json"
 	"os"
+	"time"
 
 	"github.com/rjbudzynski/radiogo/internal/config"
 )
@@ -16,12 +17,20 @@ func (r StationRef) IsZero() bool {
 	return r.UUID == "" && r.URL == ""
 }
 
+// RecentEntry mirrors ui.recentEntry so appstate doesn't depend on ui.
+type RecentEntry struct {
+	Time        time.Time `json:"time"`
+	StationName string    `json:"station_name"`
+	TrackTitle  string    `json:"track_title,omitempty"`
+}
+
 type State struct {
-	Volume          int        `json:"volume"`
-	ActiveTab       int        `json:"active_tab,omitempty"`
-	SearchQuery     string     `json:"search_query,omitempty"`
-	BrowseSort      string     `json:"browse_sort,omitempty"`
-	SelectedStation StationRef `json:"selected_station,omitempty"`
+	Volume          int           `json:"volume"`
+	ActiveTab       int           `json:"active_tab,omitempty"`
+	SearchQuery     string        `json:"search_query,omitempty"`
+	BrowseSort      string        `json:"browse_sort,omitempty"`
+	SelectedStation StationRef    `json:"selected_station,omitempty"`
+	RecentHistory   []RecentEntry `json:"recent_history,omitempty"`
 }
 
 // Load reads the saved UI state. It returns nil on first run.

@@ -2,6 +2,7 @@ package appstate_test
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/rjbudzynski/radiogo/internal/appstate"
@@ -45,7 +46,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Fatal("Load() = nil, want saved state")
 	}
 
-	if *got != want {
+	if !reflect.DeepEqual(*got, want) {
 		t.Fatalf("Load() = %#v, want %#v", *got, want)
 	}
 

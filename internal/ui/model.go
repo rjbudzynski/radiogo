@@ -114,6 +114,13 @@ type stateSavedMsg struct{}
 type stateSaveErrMsg struct{ err error }
 type persistStateMsg struct{} // triggers deferred state persistence
 
+// recentEntry is a single item in the recently-played history.
+type recentEntry struct {
+	Time        time.Time `json:"time"`
+	StationName string    `json:"station_name"`
+	TrackTitle  string    `json:"track_title,omitempty"`
+}
+
 // PlayerController is the subset of Player the model needs, broken out as an
 // interface so tests can verify playback commands without a real mpv.
 type PlayerController interface {
@@ -153,11 +160,12 @@ type Model struct {
 	restoredSelection appstate.StationRef
 
 	// Playback
-	player     PlayerController
-	nowPlaying *radio.Station
-	trackTitle string
-	volume     int
-	paused     bool
+	player        PlayerController
+	nowPlaying    *radio.Station
+	trackTitle    string
+	volume        int
+	paused        bool
+	recentHistory []recentEntry // up to 6 most recent; newest first
 
 	// UI state
 	loading    bool
