@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -60,6 +61,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case metaUpdateMsg:
 		m.trackTitle = msg.title
+		if m.nowPlaying != nil {
+			m.recordHistory(time.Now(), m.nowPlaying.Name, msg.title)
+		}
 		return m, nil
 
 	case pauseStateMsg:
@@ -373,6 +377,7 @@ func (m *Model) playSelected() tea.Cmd {
 	m.nowPlaying = &station
 	m.trackTitle = ""
 	m.paused = false
+	m.recordHistory(time.Now(), station.Name, "")
 
 	err := m.player.Play(
 		station,
