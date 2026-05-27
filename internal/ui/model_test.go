@@ -395,3 +395,49 @@ func TestRecordHistory_MarksStateDirty(t *testing.T) {
 		t.Fatal("expected stateDirty = true after recordHistory")
 	}
 }
+
+func TestStateSnapshot_IncludesRecentHistory(t *testing.T) {
+	m := baseModel()
+	now := time.Now()
+	m.recordHistory(now, "Jazz FM", "Take Five")
+	m.recordHistory(now.Add(time.Minute), "Rock FM", "")
+
+	state := m.stateSnapshot()
+	if len(state.RecentHistory) != 2 {
+		t.Fatalf("state history len = %d, want 2", len(state.RecentHistory))
+	}
+	// Newest first.
+	if state.RecentHistory[0].StationName != "Rock FM" {
+		t.Fatalf("newest = %q, want Rock FM", state.RecentHistory[0].StationName)
+	}
+	if state.RecentHistory[0].TrackTitle != "" {
+		t.Fatalf("track = %q, want empty", state.RecentHistory[0].TrackTitle)
+	}
+	if state.RecentHistory[1].StationName != "Jazz FM" {
+		t.Fatalf("oldest = %q, want Jazz FM", state.RecentHistory[1].StationName)
+	}
+	if state.RecentHistory[1].TrackTitle != "Take Five" {
+		t.Fatalf("track = %q, want Take Five", state.RecentHistory[1].TrackTitle)
+	}
+}
+
+func TestNew_RestoresRecentHistory(t *testing.T) {
+	now := time.Now()
+	restored := &appstate.State{
+		RecentHistory: []appstate.RecentEntry{
+			{Time: now, StationName: "Jazz FM", TrackTitle: "So What"},
+			{Time: now.Add(-time.Minute), StationName: "Rock FM", TrackTitle: ""},
+		},
+	}
+
+	m := New(nil, restored, nil)
+	if len(m.recentHistory) != 2 {
+		t.Fatalf("len = %d, want 2", len(m.recentHistory))
+	}
+	if m.recentHistory[0].StationName != "Jazz FM" {
+		t.Fatalf("name = %q, want Jazz FM", m.recentHistory[0].StationName)
+	}
+	if m.recentHistory[0].TrackTitle != "So What" {
+		t.Fatalf("track = %q, want So What", m.recentHistory[0].TrackTitle)
+	}
+}
